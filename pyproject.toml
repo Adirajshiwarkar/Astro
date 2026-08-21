@@ -1,0 +1,57 @@
+[project]
+name = "astro"
+version = "0.1.0"
+description = "Astro FastAPI foundation project"
+requires-python = ">=3.11"
+dependencies = [
+    "fastapi>=0.100.0",
+    "pydantic-settings>=2.0.0",
+    "sqlalchemy>=2.0.0",
+    "asyncpg>=0.28.0",
+    "psycopg-binary>=3.1.0",
+    "alembic>=1.11.0",
+    "redis>=5.0.0",
+    "qdrant-client>=1.6.0",
+    "uvicorn[standard]>=0.22.0",
+    "python-json-logger>=2.0.0",
+    "pyjwt>=2.8.0",
+    "bcrypt>=4.0.0",
+    "email-validator>=2.0.0",
+    "pyswisseph>=2.10.0.post1",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.4.0",
+    "pytest-asyncio>=0.21.0",
+    "pytest-cov>=4.1.0",
+    "ruff>=0.1.0",
+    "mypy>=1.5.0",
+    "pre-commit>=3.3.0",
+    "httpx>=0.24.0",
+]
+
+[build-system]
+requires = ["setuptools>=61.0.0"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["app*"]
+
+[tool.ruff]
+target-version = "py311"
+line-length = 88
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "N", "UP", "B", "C4", "ARG", "PTH"]
+ignore = ["B008", "E501"]
+
+[tool.mypy]
+python_version = "3.11"
+strict = true
+ignore_missing_imports = true
+exclude = [".venv", "migrations"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
