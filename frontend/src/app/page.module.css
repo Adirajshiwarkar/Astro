@@ -620,7 +620,9 @@
 .chatLayout {
   display: grid;
   grid-template-columns: 300px 1fr;
-  height: calc(100vh - 200px);
+  height: calc(100vh - 140px);
+  max-height: calc(100vh - 140px);
+  min-height: 500px;
   background-color: var(--bg-secondary);
   border: 1px solid var(--border-color);
   border-radius: var(--radius-lg);
@@ -633,6 +635,9 @@
   display: flex;
   flex-direction: column;
   background-color: #161613;
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
 }
 
 .sidebarHeader {
@@ -711,6 +716,9 @@
   flex-direction: column;
   background-color: var(--bg-secondary);
   position: relative;
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
 }
 
 .scrollDownBtn {
@@ -759,6 +767,7 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
+  flex-shrink: 0;
 }
 
 .activeChatInfo h4 {
@@ -777,35 +786,44 @@
 }
 
 .chatMessages {
-  flex: 1;
+  flex: 1 1 0%;
+  min-height: 0;
+  height: 0;
   overflow-y: auto;
+  scroll-behavior: smooth;
   padding: 24px;
   display: flex;
   flex-direction: column;
   gap: 20px;
+  scrollbar-width: thin;
+  scrollbar-color: var(--accent-gold) rgba(22, 22, 19, 0.9);
 }
 
-/* Visible Custom Scrollbar / Slider for Chat & Conversations Sidebar */
+/* Highly Visible Custom Scrollbar / Slider for Chat & Conversations Sidebar */
 .chatMessages::-webkit-scrollbar,
 .conversationsList::-webkit-scrollbar {
-  width: 6px;
+  width: 10px;
 }
 
 .chatMessages::-webkit-scrollbar-track,
 .conversationsList::-webkit-scrollbar-track {
-  background: rgba(255, 255, 255, 0.04);
-  border-radius: 4px;
+  background: rgba(22, 22, 19, 0.8);
+  border-radius: 6px;
+  margin: 4px 0;
 }
 
 .chatMessages::-webkit-scrollbar-thumb,
 .conversationsList::-webkit-scrollbar-thumb {
   background: var(--accent-gold);
-  border-radius: 4px;
+  border-radius: 6px;
+  border: 2px solid rgba(22, 22, 19, 0.8);
+  box-shadow: 0 0 10px rgba(197, 168, 128, 0.4);
 }
 
 .chatMessages::-webkit-scrollbar-thumb:hover,
 .conversationsList::-webkit-scrollbar-thumb:hover {
   background: var(--accent-terracotta);
+  border-color: rgba(22, 22, 19, 0.8);
 }
 
 .message {
@@ -1048,4 +1066,788 @@
     transform: translateX(0);
     opacity: 1;
   }
+}
+
+/* Chat Prompt Suggestions / Starter Chips */
+.suggestionContainer {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  margin: auto;
+  max-width: 680px;
+  width: 100%;
+  padding: 40px 20px;
+  animation: fadeIn 0.4s ease-out;
+}
+
+.suggestionTitle {
+  font-size: 1.6rem;
+  font-family: var(--font-serif);
+  color: var(--text-primary);
+  text-align: center;
+  margin-bottom: 8px;
+}
+
+.suggestionSubtitle {
+  font-size: 0.9rem;
+  color: var(--text-muted);
+  text-align: center;
+  margin-bottom: 32px;
+}
+
+.suggestionGrid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 16px;
+  width: 100%;
+}
+
+.suggestionCard {
+  background-color: var(--bg-tertiary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  padding: 18px;
+  text-align: left;
+  cursor: pointer;
+  transition: all 0.2s ease-in-out;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.suggestionCard:hover {
+  border-color: var(--accent-gold);
+  background-color: rgba(197, 168, 128, 0.05);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+}
+
+.suggestionCardIcon {
+  font-size: 1.2rem;
+  color: var(--accent-gold);
+}
+
+.suggestionCardText h5 {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: 4px;
+}
+
+.suggestionCardText p {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+}
+
+/* Message Formatting Styles */
+.messageRow {
+  display: flex;
+  gap: 16px;
+  padding: 8px 4px;
+  width: 100%;
+  animation: messageFadeIn 0.3s ease-out;
+}
+
+.messageRowUser {
+  flex-direction: row-reverse;
+}
+
+.messageAvatar {
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  box-shadow: var(--shadow-sm);
+  border: 1px solid var(--border-color);
+}
+
+.assistantAvatar {
+  background-color: var(--bg-tertiary);
+  color: var(--accent-gold);
+  border-color: rgba(197, 168, 128, 0.3);
+}
+
+.userAvatar {
+  background-color: var(--accent-gold);
+  color: #121210;
+}
+
+.messageWrapper {
+  display: flex;
+  flex-direction: column;
+  max-width: 78%;
+}
+
+.messageRowUser .messageWrapper {
+  align-items: flex-end;
+}
+
+.msgHeading {
+  font-size: 1.15rem;
+  font-weight: 600;
+  color: var(--accent-gold);
+  margin-top: 14px;
+  margin-bottom: 8px;
+}
+
+.msgSubheading {
+  font-size: 1.05rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-top: 12px;
+  margin-bottom: 6px;
+}
+
+.msgBullet {
+  margin-left: 18px;
+  margin-bottom: 6px;
+  list-style-type: disc;
+}
+
+.msgParagraph {
+  margin-bottom: 10px;
+}
+
+.msgParagraph:last-child {
+  margin-bottom: 0;
+}
+
+/* Custom Typing / Thinking Indicator */
+.typingIndicator {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 14px;
+  background-color: var(--bg-tertiary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  width: fit-content;
+  margin-left: 54px;
+}
+
+.typingDot {
+  width: 7px;
+  height: 7px;
+  background-color: var(--accent-gold);
+  border-radius: 50%;
+  animation: typingBounce 1.4s infinite ease-in-out both;
+}
+
+.typingDot:nth-child(1) {
+  animation-delay: -0.32s;
+}
+
+.typingDot:nth-child(2) {
+  animation-delay: -0.16s;
+}
+
+@keyframes typingBounce {
+  0%, 80%, 100% { transform: scale(0); opacity: 0.3; }
+  40% { transform: scale(1); opacity: 1; }
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes messageFadeIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* Chat Input bar styling improvements */
+.chatInputWrapper {
+  display: flex;
+  flex-direction: column;
+  background-color: #161613;
+  border-top: 1px solid var(--border-color);
+  padding: 16px 24px;
+  flex-shrink: 0;
+}
+
+.chatInputToolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 8px;
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+
+.toolbarActions {
+  display: flex;
+  gap: 8px;
+}
+
+.actionIconBtn {
+  background: transparent;
+  color: var(--text-muted);
+  border: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  padding: 4px;
+  border-radius: 4px;
+  transition: all 0.15s ease;
+}
+
+.actionIconBtn:hover {
+  color: var(--accent-gold);
+  background-color: rgba(255, 255, 255, 0.05);
+}
+
+.sidebarSearchInput {
+  background-color: var(--bg-tertiary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  color: var(--text-primary);
+  padding: 8px 12px;
+  font-size: 0.8rem;
+  width: 100%;
+  outline: none;
+  transition: border-color 0.2s ease;
+}
+
+.sidebarSearchInput:focus {
+  border-color: var(--accent-gold);
+}
+
+/* --- Parsed Chart Analytical Dashboard --- */
+.ocrDashboardContainer {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  width: 100%;
+  margin-top: 24px;
+  animation: fadeIn 0.3s ease-in-out;
+}
+
+.ocrHeaderBar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 16px;
+  background: linear-gradient(135deg, rgba(30, 30, 25, 0.9), rgba(20, 20, 16, 0.95));
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-lg);
+  padding: 20px 24px;
+  box-shadow: var(--shadow-md);
+}
+
+.ocrHeaderTitle {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.ocrHeaderTitle h3 {
+  font-size: 1.3rem;
+  font-family: var(--font-serif);
+  color: var(--text-primary);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.ocrHeaderTitle p {
+  font-size: 0.85rem;
+  color: var(--text-muted);
+}
+
+.ocrHeaderBadges {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.ocrBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  padding: 5px 12px;
+  border-radius: 20px;
+  border: 1px solid var(--border-color);
+  background-color: var(--bg-tertiary);
+  color: var(--text-secondary);
+}
+
+.ocrBadgeHigh {
+  background-color: rgba(165, 192, 176, 0.15);
+  border-color: var(--accent-sage);
+  color: var(--accent-sage);
+}
+
+.ocrBadgeMed {
+  background-color: rgba(230, 194, 128, 0.15);
+  border-color: var(--accent-gold);
+  color: var(--accent-gold);
+}
+
+.ocrBadgeLow {
+  background-color: rgba(216, 125, 125, 0.15);
+  border-color: var(--accent-terracotta);
+  color: var(--accent-terracotta);
+}
+
+.ocrActionsGroup {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.btnPrimaryGold {
+  background: linear-gradient(135deg, var(--accent-gold), #b89668);
+  color: #121210;
+  border: none;
+  font-weight: 600;
+  font-size: 0.85rem;
+  padding: 9px 18px;
+  border-radius: var(--radius-md);
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  transition: var(--transition-smooth);
+  box-shadow: 0 4px 12px rgba(197, 168, 128, 0.2);
+}
+
+.btnPrimaryGold:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 16px rgba(197, 168, 128, 0.35);
+  background: linear-gradient(135deg, #d4b27d, var(--accent-gold));
+}
+
+.btnSecondaryPurple {
+  background-color: var(--bg-tertiary);
+  color: var(--accent-gold);
+  border: 1px solid rgba(197, 168, 128, 0.3);
+  font-weight: 500;
+  font-size: 0.85rem;
+  padding: 9px 16px;
+  border-radius: var(--radius-md);
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  transition: var(--transition-smooth);
+}
+
+.btnSecondaryPurple:hover {
+  background-color: rgba(197, 168, 128, 0.15);
+  border-color: var(--accent-gold);
+}
+
+.btnGhost {
+  background-color: transparent;
+  color: var(--text-secondary);
+  border: 1px solid var(--border-color);
+  font-size: 0.85rem;
+  padding: 9px 14px;
+  border-radius: var(--radius-md);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  transition: var(--transition-smooth);
+}
+
+.btnGhost:hover {
+  background-color: var(--bg-tertiary);
+  color: var(--text-primary);
+}
+
+/* Native Metadata Banner */
+.ocrMetaGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 12px;
+  background-color: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-lg);
+  padding: 18px 22px;
+}
+
+.ocrMetaItem {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.ocrMetaLabel {
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-muted);
+}
+
+.ocrMetaVal {
+  font-size: 0.92rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.ocrMetaSub {
+  font-size: 0.75rem;
+  color: var(--accent-gold);
+}
+
+/* Navigation Pills for OCR Dashboard */
+.ocrNavTabs {
+  display: flex;
+  gap: 6px;
+  background-color: var(--bg-tertiary);
+  padding: 4px;
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--border-color);
+  overflow-x: auto;
+}
+
+.ocrTabBtn {
+  background: transparent;
+  color: var(--text-secondary);
+  border: none;
+  font-size: 0.85rem;
+  font-weight: 500;
+  padding: 9px 16px;
+  border-radius: var(--radius-md);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: var(--transition-smooth);
+}
+
+.ocrTabBtn:hover {
+  color: var(--text-primary);
+  background-color: rgba(255, 255, 255, 0.03);
+}
+
+.ocrTabBtnActive {
+  background-color: var(--bg-secondary);
+  color: var(--accent-gold);
+  font-weight: 600;
+  box-shadow: var(--shadow-sm);
+  border: 1px solid rgba(197, 168, 128, 0.2);
+}
+
+/* Main Content Panel */
+.ocrPanelCard {
+  background-color: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-lg);
+  padding: 24px;
+  box-shadow: var(--shadow-md);
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+/* Planetary Table Matrix */
+.planetSearchRow {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.planetSearchBox {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background-color: var(--bg-tertiary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  padding: 6px 12px;
+  width: 280px;
+}
+
+.planetSearchBox input {
+  background: transparent;
+  border: none;
+  color: var(--text-primary);
+  font-size: 0.85rem;
+  width: 100%;
+  outline: none;
+}
+
+.planetTable {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+}
+
+.planetTable th {
+  background-color: var(--bg-tertiary);
+  color: var(--text-muted);
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  padding: 12px 16px;
+  text-align: left;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.planetTable td {
+  padding: 12px 16px;
+  font-size: 0.88rem;
+  color: var(--text-primary);
+  border-bottom: 1px solid var(--border-color);
+  vertical-align: middle;
+}
+
+.planetTable tr:last-child td {
+  border-bottom: none;
+}
+
+.planetTable tr:hover td {
+  background-color: rgba(197, 168, 128, 0.03);
+}
+
+.planetCell {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-weight: 600;
+}
+
+.planetIconBadge {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background-color: var(--bg-tertiary);
+  border: 1px solid var(--border-color);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.9rem;
+}
+
+.houseBadge {
+  display: inline-block;
+  padding: 3px 8px;
+  border-radius: 12px;
+  background-color: var(--bg-tertiary);
+  border: 1px solid var(--border-color);
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--accent-gold);
+}
+
+.flagTag {
+  font-size: 0.72rem;
+  padding: 2px 7px;
+  border-radius: 4px;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-weight: 500;
+}
+
+.flagRx {
+  background-color: rgba(216, 125, 125, 0.15);
+  color: var(--accent-terracotta);
+  border: 1px solid rgba(216, 125, 125, 0.3);
+}
+
+.flagCombust {
+  background-color: rgba(230, 194, 128, 0.15);
+  color: var(--accent-gold);
+  border: 1px solid rgba(230, 194, 128, 0.3);
+}
+
+.confMeterContainer {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 110px;
+}
+
+.confBarTrack {
+  flex: 1;
+  height: 5px;
+  background-color: var(--bg-tertiary);
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.confBarFill {
+  height: 100%;
+  border-radius: 3px;
+  transition: width 0.4s ease;
+}
+
+.confValueText {
+  font-size: 0.75rem;
+  font-weight: 600;
+  width: 36px;
+  text-align: right;
+}
+
+/* 12 Houses Card Grid */
+.housesGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 16px;
+}
+
+.houseCard {
+  background-color: var(--bg-tertiary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  transition: var(--transition-smooth);
+}
+
+.houseCard:hover {
+  border-color: var(--accent-gold);
+  transform: translateY(-2px);
+}
+
+.houseCardHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.houseNumberTitle {
+  font-size: 0.95rem;
+  font-weight: 600;
+  font-family: var(--font-serif);
+  color: var(--text-primary);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.houseSignBadge {
+  font-size: 0.8rem;
+  color: var(--accent-gold);
+  background-color: var(--bg-secondary);
+  padding: 3px 9px;
+  border-radius: 12px;
+  border: 1px solid var(--border-color);
+  font-weight: 500;
+}
+
+.houseDescText {
+  font-size: 0.78rem;
+  color: var(--text-muted);
+  line-height: 1.35;
+}
+
+.houseOccupantsContainer {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  border-top: 1px dashed var(--border-color);
+  padding-top: 10px;
+}
+
+.occupantPill {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background-color: var(--bg-secondary);
+  padding: 5px 10px;
+  border-radius: var(--radius-sm);
+  font-size: 0.82rem;
+  font-weight: 500;
+}
+
+.noOccupantsText {
+  font-size: 0.78rem;
+  color: var(--text-muted);
+  font-style: italic;
+}
+
+/* Dasha Explorer Tab */
+.dashaHeroCard {
+  background: linear-gradient(135deg, rgba(197, 168, 128, 0.08), rgba(22, 22, 19, 0.8));
+  border: 1px solid rgba(197, 168, 128, 0.3);
+  border-radius: var(--radius-md);
+  padding: 20px;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 16px;
+}
+
+.dashaItem {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.dashaItem label {
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  letter-spacing: 0.05em;
+}
+
+.dashaItem span {
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: var(--accent-gold);
+}
+
+/* Audit & Validation View */
+.auditChecksGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 12px;
+}
+
+.checkCard {
+  background-color: var(--bg-tertiary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  padding: 14px 16px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.checkCardSuccess {
+  border-color: rgba(165, 192, 176, 0.3);
+}
+
+.checkCardWarning {
+  border-color: rgba(230, 194, 128, 0.3);
+}
+
+.checkIcon {
+  font-size: 1.2rem;
+  flex-shrink: 0;
+}
+
+.checkTitle {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.checkSub {
+  font-size: 0.75rem;
+  color: var(--text-muted);
 }

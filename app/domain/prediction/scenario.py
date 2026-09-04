@@ -95,12 +95,12 @@ class ScenarioEngine:
         if primary_score < 0.50:
             primary_unc_factors.append(f"Low support score ({primary_score:.2f}) indicates high baseline uncertainty.")
 
-        if len(neg_evidence) >= len(pos_evidence) and neg_evidence:
-            primary_unc_level = UncertaintyLevel.HIGH
-        elif primary_unc_factors:
+        if primary_score >= 0.75:
+            primary_unc_level = UncertaintyLevel.LOW
+        elif primary_score >= 0.45:
             primary_unc_level = UncertaintyLevel.MODERATE
         else:
-            primary_unc_level = UncertaintyLevel.LOW
+            primary_unc_level = UncertaintyLevel.HIGH
 
         primary_uncertainty = UncertaintyMetadata(
             uncertainty_level=primary_unc_level,
@@ -128,8 +128,9 @@ class ScenarioEngine:
         if neg_evidence:
             alt_unc_factors.append("Presence of conflicting factors increases alternative scenario variability.")
 
+        alt_unc_level = UncertaintyLevel.LOW if alt_score >= 0.75 else (UncertaintyLevel.MODERATE if alt_score >= 0.45 else UncertaintyLevel.HIGH)
         alt_uncertainty = UncertaintyMetadata(
-            uncertainty_level=UncertaintyLevel.MODERATE,
+            uncertainty_level=alt_unc_level,
             uncertainty_factors=alt_unc_factors,
         )
 
@@ -159,8 +160,9 @@ class ScenarioEngine:
         if pos_evidence:
             challenge_unc_factors.append("Strong positive indicators act as countervailing stabilizers against this challenge.")
 
+        challenge_unc_level = UncertaintyLevel.LOW if challenge_score >= 0.75 else (UncertaintyLevel.MODERATE if challenge_score >= 0.45 else UncertaintyLevel.HIGH)
         challenge_uncertainty = UncertaintyMetadata(
-            uncertainty_level=UncertaintyLevel.HIGH if len(pos_evidence) > 0 else UncertaintyLevel.MODERATE,
+            uncertainty_level=challenge_unc_level,
             uncertainty_factors=challenge_unc_factors,
         )
 

@@ -61,8 +61,10 @@ def synthesize_dynamic_astrology_response(
     chart_info: dict | None = None,
     numerology_info: dict | None = None,
     knowledge_texts: list[str] | None = None,
+    chart_placements_str: str = "",
+    chart_aspects_str: str = "",
 ) -> str:
-    """Generate a clean, simple, and direct astrological answer tailored to the user's query."""
+    """Generate a highly personalized, accurate, engaging, and direct response using the user's actual placements."""
     q_lower = query.lower().strip()
 
     # Extract numerology metrics
@@ -71,18 +73,39 @@ def synthesize_dynamic_astrology_response(
     lp_str = str(lp_val) if lp_val is not None else "5"
     py_str = str(py_val) if py_val is not None else "1"
 
+    # Helper to find a planet's placement from the string
+    def get_placement(planet_name: str) -> str:
+        if not chart_placements_str:
+            return f"your natal {planet_name.capitalize()}"
+        for part in chart_placements_str.split("; "):
+            if part.lower().startswith(planet_name.lower()):
+                return part
+        return f"your natal {planet_name.capitalize()}"
+
     loc_str = chart_info.get("birth_place", "Indore, India") if chart_info else "Indore, India"
-    kb_insight = (knowledge_texts[0] if (knowledge_texts and len(knowledge_texts) > 0)
-                  else "Jupiter transits align favorably with your natal key houses, bringing strategic growth.")
+
+    # Map Life Path to dynamic remedies
+    lp = int(lp_str) if lp_str.isdigit() else 5
+    lp_remedies = {
+        1: ("Ruby", "Om Suryaya Namaha", "Ruby Red / Gold", "Sun"),
+        2: ("Pearl", "Om Chandraya Namaha", "White / Silver", "Moon"),
+        3: ("Yellow Sapphire", "Om Guruve Namaha", "Yellow / Gold", "Jupiter"),
+        4: ("Hessonite", "Om Rahave Namaha", "Brown / Charcoal", "Rahu"),
+        5: ("Emerald", "Om Budhaya Namaha", "Emerald Green", "Mercury"),
+        6: ("Diamond", "Om Shukraya Namaha", "Pink / White", "Venus"),
+        7: ("Cat's Eye", "Om Ketave Namaha", "Light Green / Grey", "Ketu"),
+        8: ("Blue Sapphire", "Om Sham Shanaishcharaya Namaha", "Dark Blue / Black", "Saturn"),
+        9: ("Red Coral", "Om Kram Kreem Kroom Sah Bhaumaya Namaha", "Red / Coral", "Mars")
+    }
+    gemstone, mantra, lucky_color, ruling_planet = lp_remedies.get(lp, ("Yellow Sapphire", "Om Guruve Namaha", "Yellow / Gold", "Jupiter"))
 
     # Simple greeting handling
     greetings = ["hi", "hello", "hey", "namaste", "greetings", "start"]
     if any(q_lower == g or q_lower.startswith(g + " ") for g in greetings) and len(q_lower.split()) <= 3:
         return (
-            "Namaste! 🙏 I am your Master Astrologer.\n\n"
-            "To provide you with an exact birth chart reading and numerology predictions, "
-            "please share your **Date of Birth (DD/MM/YYYY)**, **Time of Birth**, and **Place of Birth**, "
-            "along with any specific question you have regarding career, relationships, finance, or health."
+            "Namaste! 🙏 I am your Master Astrologer & Numerologist. "
+            "Unlike standard pandits, I bring you real-world, dynamic decision-making by blending Vedic charts, Western transits, and Numerological cycles.\n\n"
+            "To unlock your personalized predictions, make sure your profile birth details are complete, or simply tell me your **Date of Birth, Time, and Place**, and ask me anything about your career, relationship, finances, or health. What area shall we look into today?"
         )
 
     # Detect primary intent
@@ -92,59 +115,79 @@ def synthesize_dynamic_astrology_response(
     is_health = any(w in q_lower for w in ["health", "disease", "wellness", "stress", "mental", "doctor"])
     is_remedy = any(w in q_lower for w in ["remedy", "gemstone", "mantra", "puja", "vastu", "ruby", "sapphire", "emerald", "diamond"])
 
-    # Simple, direct, unified consultation answer
+    # Look up placements
+    sun_place = get_placement("sun")
+    moon_place = get_placement("moon")
+    venus_place = get_placement("venus")
+    jupiter_place = get_placement("jupiter")
+    saturn_place = get_placement("saturn")
+    mars_place = get_placement("mars")
+    mercury_place = get_placement("mercury")
+
+    # Generate custom prediction content
     if is_career:
         answer_body = (
-            f"Based on your query regarding career and professional trajectory:\n\n"
-            f"• **Astrological Insights**: Transiting Jupiter and Sun activate executive house alignments, signaling strong professional recognition and leadership momentum. Your active Vimshottari Dasha supports strategic career moves.\n"
-            f"• **Numerology Alignment**: Your Life Path {lp_str} and Personal Year {py_str} indicate a 12-month window for building long-term authority and managing key responsibilities.\n"
-            f"• **Key Timing & Guidance**: May, September, and November offer prime windows for promotions or new contracts.\n"
-            f"• **Recommended Remedy**: Wear a Natural Yellow Sapphire or Ruby set in gold on Thursday/Sunday morning, and recite *'Om Suryaya Namaha'* 108 times daily."
+            f"Here is your direct career trajectory and professional guidance:\n\n"
+            f"• **Astrological Placement**: Your career dynamics are heavily influenced by **{jupiter_place}** (governing growth and expansion) and **{saturn_place}** (ruling discipline and long-term structure). The alignment indicates key changes in authority or professional recognition.\n"
+            f"• **Vedic Vimshottari & Transits**: Transiting Jupiter is aspecting your MC (Midheaven), signaling that a strategic pivot or promotion is highly supported by your planetary cycles.\n"
+            f"• **Numerological Direction**: With a **Life Path {lp_str}** and entering a **Personal Year {py_str}**, this is a prime year for building authority, taking on executive decisions, and initiating long-term business or job ventures.\n"
+            f"• **Target Windows**: The next 2-3 months offer the strongest cosmic support for promotions, salary negotiations, or changing companies.\n"
+            f"• **Pandit-Surpassing Remedy**: Wear a **{gemstone}** set in gold or silver on Thursday/Sunday morning to strengthen your ruling planet (**{ruling_planet}**). Chant the mantra *'{mantra}'* 108 times daily to activate leadership energies."
         )
+        follow_up = "Are you considering a change in your current job, or are you looking to start a new business venture? Let's analyze the exact timing for either."
     elif is_love:
         answer_body = (
-            f"Based on your query regarding relationships and marriage compatibility:\n\n"
-            f"• **Astrological Insights**: Venus forming a favorable aspect with Jupiter strengthens emotional harmony and relationship clarity. Transit alignments favor open communication and mutual trust.\n"
-            f"• **Numerology Alignment**: Life Path {lp_str} paired with Personal Year {py_str} highlights a period of emotional bonding and domestic stability.\n"
-            f"• **Key Timing & Guidance**: August through October is highly favorable for relationship milestones and marital discussions.\n"
-            f"• **Recommended Remedy**: Wear a Natural Diamond or Rose Quartz set in silver/white gold on Fridays, and recite *'Om Shukraya Namaha'* 108 times daily."
+            f"Here is your relationship alignment and marriage compatibility reading:\n\n"
+            f"• **Astrological Placement**: Your emotional and relational profile is anchored by **{venus_place}** and **{moon_place}**. This placement determines how you connect, express affection, and find harmony.\n"
+            f"• **Vedic Vimshottari & Transits**: Favorable aspects from transit Jupiter to Venus are dissolving past relationship barriers, bringing emotional clarity and opportunities for long-term commitment.\n"
+            f"• **Numerological Direction**: Your **Life Path {lp_str}** combined with **Personal Year {py_str}** indicates a focus on harmony, family foundations, and settling emotional cycles.\n"
+            f"• **Target Windows**: Favorable relationship cycles peak in the late summer/autumn months. Plan important relational conversations during this window.\n"
+            f"• **Pandit-Surpassing Remedy**: Chant *'Om Shukraya Namaha'* 108 times on Fridays. Keep your bedroom styled with **{lucky_color}** tones to align with your personal vibrational frequency."
         )
+        follow_up = "Would you like me to look at compatibility with a specific partner, or calculate the best auspicious dates (Muhurat) for relationship milestones?"
     elif is_finance:
         answer_body = (
-            f"Based on your query regarding wealth, finances, and investments:\n\n"
-            f"• **Astrological Insights**: Activations in Dhana (2nd) and Labha (11th) houses indicate steady cash flow improvement and favorable asset growth.\n"
-            f"• **Numerology Alignment**: Personal Year {py_str} provides strong structural discipline for financial consolidation and debt clearance.\n"
-            f"• **Key Timing & Guidance**: March, July, and October present favorable opportunities for disciplined long-term investments.\n"
-            f"• **Recommended Remedy**: Wear a certified Emerald (4 carats) set in gold on Wednesday morning, and recite *'Om Shreem Mahalakshmyei Namaha'* 108 times daily."
+            f"Here is your wealth creation, investment, and financial cycle analysis:\n\n"
+            f"• **Astrological Placement**: Your wealth intelligence is governed by **{mercury_place}** and **{jupiter_place}**, activating your 2nd (wealth accumulation) and 11th (gains) houses.\n"
+            f"• **Vedic Vimshottari & Transits**: Transit Saturn's positioning demands financial discipline, while transiting Jupiter opens doors for smart investments and long-term asset growth.\n"
+            f"• **Numerological Direction**: Entering a **Personal Year {py_str}** provides the structural focus required to pay off debts, lock in investments, and diversify income streams.\n"
+            f"• **Target Windows**: Look for investment or trade entries during the first half of the upcoming month when planetary speed is most favorable.\n"
+            f"• **Pandit-Surpassing Remedy**: Store water in a copper vessel overnight and drink it in the morning. Recite *'Om Shreem Mahalakshmyei Namaha'* 108 times daily on Wednesday mornings."
         )
+        follow_up = "Are you focused on recovering blocked funds, making a real estate investment, or seeking new income streams? Tell me so I can give you the exact date windows."
     elif is_health:
         answer_body = (
-            f"Based on your query regarding health and vitality:\n\n"
-            f"• **Astrological Insights**: Sun and Saturn aspects encourage constitutional strengthening. Maintaining balanced routines will sustain your energetic stamina.\n"
-            f"• **Numerology Alignment**: Life Path {lp_str} supports physical resilience and mental focus during Personal Year {py_str}.\n"
-            f"• **Key Timing & Guidance**: Focus on holistic wellness, dietary cleanses, and regular sleep cycles over the coming months.\n"
-            f"• **Recommended Remedy**: Practice Surya Namaskar at sunrise, store water in copper vessels, and chant Mahamrityunjaya Mantra daily."
+            f"Here is your vitality, health, and cosmic wellness profile:\n\n"
+            f"• **Astrological Placement**: Your physical vitality is guided by **{sun_place}** and **{mars_place}**. These control your energy cycles and stress responses.\n"
+            f"• **Vedic Vimshottari & Transits**: Transiting Rahu or Saturn aspects require you to maintain consistent sleep hygiene and dietary discipline to avoid burnout.\n"
+            f"• **Numerological Direction**: Your **Life Path {lp_str}** suggests a natural susceptibility to nervous energy; use your **Personal Year {py_str}** to implement a robust, daily workout or meditation routine.\n"
+            f"• **Target Windows**: Next month shows a minor energy dip; optimize your health habits starting today.\n"
+            f"• **Pandit-Surpassing Remedy**: Drink warm water with lemon daily. Practice Surya Namaskar at sunrise, and chant the Mahamrityunjaya Mantra 11 times every morning."
         )
+        follow_up = "Are you facing any specific physical health issues, sleep disturbances, or emotional stress? Let's check the transit chart to pinpoint the cause."
     elif is_remedy:
         answer_body = (
-            f"Based on your query regarding astrological remedies and gemstones:\n\n"
-            f"• **Gemstone Recommendation**: Natural Yellow Sapphire, Ruby, or Emerald chosen according to your dominant natal planet, set in gold/silver.\n"
-            f"• **Vedic Mantras**: Recite *'Om Suryaya Namaha'* or *'Om Namo Bhagavate Vasudevaya'* 108 times daily after morning prayer.\n"
-            f"• **Rituals & Vastu**: Offer water to the Sun at sunrise on Sundays. Favorable directions: East and North-East | Lucky Colors: Gold, White, Royal Blue."
+            f"Here is your customized remedial blueprint to balance challenging placements:\n\n"
+            f"• **Gemstone Recommendation**: Based on your **Life Path {lp_str}**, your primary cosmic stone is **{gemstone}** (representing **{ruling_planet}**). It should be set in gold or silver and worn on a Thursday or Sunday morning on the ring or index finger.\n"
+            f"• **Mantras**: Recite the activation mantra *'{mantra}'* 108 times daily after a morning shower.\n"
+            f"• **Lucky Vibes**: Integrate **{lucky_color}** into your workspace and outfits. Favorable directions are East and Northeast."
         )
+        follow_up = "Are you seeking to resolve a career hurdle, relationship conflict, or health issue? I can recommend a specific puja, mantra, or gemstone wear schedule for it."
     else:
         answer_body = (
             f"Regarding your query *\"{query}\"*:\n\n"
-            f"• **Astrological Reading**: Planetary transits aligned with your natal chart provide positive direction. Active Vimshottari Dasha vectors foster strategic clarity.\n"
-            f"• **Numerology Profile**: Life Path {lp_str} and Personal Year {py_str} reinforce your natural strengths and practical decision-making.\n"
-            f"• **Key Guidance**: Proceed with confidence, maintain disciplined execution, and leverage current transits over the next 3 to 6 months.\n"
-            f"• **Recommended Remedy**: Recite *'Om Suryaya Namaha'* 108 times daily and keep your focus on long-term goals."
+            f"• **Astrological Placement**: Sun is placed at **{sun_place}** and Moon is at **{moon_place}**. This combination governs your ego-drive and emotional reactions to events.\n"
+            f"• **Vedic Vimshottari & Transits**: Major transits align with your natal planets (**{chart_aspects_str if chart_aspects_str else 'none'}**), indicating that a transition is active in your current timeline.\n"
+            f"• **Numerological Cycle**: Your **Life Path {lp_str}** and **Personal Year {py_str}** highlight a cycle of action and building structures that support practical decisions.\n"
+            f"• **Remedy**: Recite *'Om Guruve Namaha'* 108 times daily to activate luck, wisdom, and cosmic protection."
         )
+        follow_up = "Would you like me to elaborate on the specific planetary transit dates or analyze a different life domain like career or relationship?"
 
     return (
-        f"🌟 **Master Astrologer Consultation**\n\n"
+        f"🌌 **Master AI Astrologer & Guide**\n\n"
         f"{answer_body}\n\n"
-        f"*Location: {loc_str} | System: {system_pref} | Life Path: {lp_str}*"
+        f"💬 *Personalized for: {loc_str} | System: {system_pref} | Life Path: {lp_str}*\n\n"
+        f"👉 **Next Step:** {follow_up}"
     )
 
   
@@ -164,6 +207,12 @@ async def chat_message(
     """Send message to astrological forecasting assistant, retrieving RAG knowledge and synthesizing AI response."""
     conversation_id = request.conversation_id or uuid.uuid4()
     logger.info(f"[CHAT ACTION] User ID '{current_user.id}' ({current_user.email}) initiated chat query: '{request.message}'")
+
+    chart_info = None
+    validation_info = None
+    numerology_info = None
+    chart_placements_str = ""
+    chart_aspects_str = ""
 
     try:
         # 1. RAG retrieval using HuggingFaceEmbeddingProvider & Qdrant
@@ -194,9 +243,6 @@ async def chat_message(
         builder = ContextBuilder()
         
         profile = getattr(current_user, "profile", None)
-        chart_info = None
-        validation_info = None
-        numerology_info = None
         life_path_val = None
         personal_year_val = None
         birthday_val = None
@@ -216,6 +262,62 @@ async def chat_message(
                 "errors": [],
                 "warnings": [],
             }
+
+            # Calculate actual natal placements and aspects to pass to prompt/synthesizer
+            try:
+                dob_val = bd.date_of_birth
+                tob_val = bd.birth_time
+                
+                if isinstance(dob_val, str):
+                    dob_dt = datetime.date.fromisoformat(dob_val)
+                else:
+                    dob_dt = dob_val
+                    
+                if isinstance(tob_val, str):
+                    time_str = tob_val.split(".")[0]
+                    parts = time_str.split(":")
+                    if len(parts) == 2:
+                        tob_t = datetime.time(int(parts[0]), int(parts[1]))
+                    else:
+                        tob_t = datetime.time(int(parts[0]), int(parts[1]), int(parts[2]))
+                else:
+                    tob_t = tob_val
+                    
+                combined_dt = datetime.datetime.combine(dob_dt, tob_t)
+                
+                from app.services.astrology.timezone import local_to_utc
+                from app.services.astrology.provider import SwissEphemerisProvider
+                from app.domain.astrology.engine import WesternAstrologyEngine
+                
+                utc_dt = local_to_utc(combined_dt, bd.timezone)
+                prov = SwissEphemerisProvider()
+                z_type = "tropical" if request.system_preference.lower() == "western" else "sidereal"
+                
+                raw_c_data = prov.calculate_chart(
+                    utc_dt=utc_dt,
+                    latitude=bd.latitude,
+                    longitude=bd.longitude,
+                    zodiac_type=z_type,
+                    ayanamsa=bd.calculation_metadata.get("ayanamsa", "lahiri") if (hasattr(bd, "calculation_metadata") and bd.calculation_metadata) else "lahiri",
+                    house_system=bd.calculation_metadata.get("house_system", "placidus") if (hasattr(bd, "calculation_metadata") and bd.calculation_metadata) else "placidus",
+                )
+                
+                c_engine = WesternAstrologyEngine()
+                natal_c = c_engine.calculate_natal_chart(raw_c_data)
+                
+                placements_list = []
+                for p in natal_c.placements:
+                    placements_list.append(f"{p.name}: {p.sign} {p.sign_degree:.2f}° (House {p.house})")
+                chart_placements_str = "; ".join(placements_list)
+                
+                aspects_list = []
+                for asp in natal_c.aspects:
+                    if asp.strength > 0.5:
+                        aspects_list.append(f"{asp.point1} {asp.aspect_type} {asp.point2} (strength: {asp.strength:.2f})")
+                chart_aspects_str = "; ".join(aspects_list[:10])
+                logger.info("[CHAT ASTROLOGY SUCCESS] Natal chart calculated for chat context.")
+            except Exception as chart_err:
+                logger.warning(f"Could not calculate natal chart for chat context: {chart_err}")
 
         # Check DOB from user profile or extract directly from message text
         dob_obj = None
@@ -281,37 +383,67 @@ async def chat_message(
 
         try:
             from huggingface_hub import InferenceClient
-            client = InferenceClient(
-                model="HuggingFaceH4/zephyr-7b-beta",
-                token=hf_token if (hf_token and hf_token.startswith("hf_")) else None
-            )
+            
+            # Use elite instruction models for maximum prediction accuracy & ChatGPT/Gemini flavor
+            models_to_try = [
+                "Qwen/Qwen2.5-7B-Instruct",
+                "mistralai/Mistral-7B-Instruct-v0.3",
+                "HuggingFaceH4/zephyr-7b-beta"
+            ]
+            
+            client = None
+            for model_name in models_to_try:
+                try:
+                    client = InferenceClient(
+                        model=model_name,
+                        token=hf_token if (hf_token and hf_token.startswith("hf_")) else None
+                    )
+                    # Small ping test to check availability
+                    client.text_generation("test", max_new_tokens=1)
+                    logger.info(f"Using Hugging Face model for chat: {model_name}")
+                    break
+                except Exception as model_err:
+                    logger.warning(f"Model {model_name} is busy or rate-limited: {model_err}")
+                    client = None
+
+            if client is None:
+                raise Exception("No Hugging Face models responded.")
+
+            # Build dynamic system prompt instructions explaining how to reason with their specific chart placements and numerology values!
+            dynamic_instruction_lines = []
+            if chart_placements_str:
+                dynamic_instruction_lines.append(f"Specifically analyze their key placements: {chart_placements_str}.")
+            if chart_aspects_str:
+                dynamic_instruction_lines.append(f"Synthesize their active aspects: {chart_aspects_str}.")
+            if numerology_info:
+                dynamic_instruction_lines.append(
+                    f"Their Life Path is {life_path_val} and their Personal Year is {personal_year_val}. Cross-reference this numerological cycle with their transit aspects to verify the timing."
+                )
+            if knowledge_texts:
+                dynamic_instruction_lines.append(
+                    "You MUST search for matches within the Retrieved Vector Knowledge, specifically applying the rules/principles mentioned in the knowledge text to the user's exact placements above."
+                )
+            
+            dynamic_instructions = " ".join(dynamic_instruction_lines)
 
             system_prompt = (
-                "You are a master Vedic & Western Astrologer with 30+ years of professional experience, replacing physical Pandit consultations. "
-                "You provide personalized astrological guidance, numerology analysis, predictions, and remedial measures based on birth details.\n\n"
-                "## YOUR EXPERTISE\n"
-                "- Birth Chart Analysis: Calculate/interpret Rashi (Moon Sign), Lagna (Ascendant), Nakshatra (Birth Star), all planetary positions (Grahas) in houses\n"
-                "- Dasha System: Identify current Vimshottari Dasha & Bukhti period, predict transitions, explain impact on life areas\n"
-                "- Numerology: Life Path Number, Expression Number, Destiny Number, Soul Urge Number, Personal Year, lucky numbers/colors from DOB & name\n"
-                "- Life Domains: Career, Finance, Relationships, Marriage Compatibility, Health, Education, Spiritual Growth, Timing for important decisions (Muhurat)\n"
-                "- Remedies: Recommend gemstones (with wearing instructions), Vedic mantras, temple rituals, Vastu principles, Pranayama, fasting practices, color therapy\n\n"
-                "## CONSULTATION PROTOCOL\n"
-                "### First Consultation (New User):\n"
-                "1. ALWAYS ask for complete birth details if not provided (Full Name, DOB DD/MM/YYYY, Time HH:MM AM/PM, Place City/Country, Concerns).\n"
-                "2. Calculate & Present Birth Chart Summary: Sun Sign, Rashi (Vedic Moon Sign), Lagna (Ascendant), Nakshatra & Nakshatra Lord, Life Path Number, Expression Number, Destiny Number, Soul Urge Number.\n"
-                "3. Provide Detailed Personal Analysis: Personality traits, strengths, challenges, current Dasha period & influence, upcoming transits.\n"
-                "4. Give Predictions & Timing: 12-month outlook with specific months, major transitions, best dates for key decisions (business, job, marriage).\n"
-                "5. Prescribe Remedies: Gemstones (stone, metal, weight, day, finger), Mantras (Vedic mantras, counts, timing), Rituals/donations, Vastu, Lifestyle.\n\n"
-                "### Follow-up Consultations:\n"
-                "- Answer specific questions directly without re-asking basics.\n"
-                "- Provide calculations for future dates and deeper insights.\n\n"
-                "## RESPONSE STYLE\n"
-                "- Speak like a professional astrologer: confident, authoritative, backed by calculations.\n"
-                "- Use astrological terminology naturally (Dasha, Rashi, Yoga, Bukhti, Sade Sati, Muhurat).\n"
-                "- Explain WHY (e.g. 'Jupiter in your 10th house brings career expansion because...').\n"
-                "- Provide specific dates/months/years and actionable remedies.\n"
-                "- Use a warm, respectful tone like a trusted family advisor and empower the user.\n"
-                "- Format cleanly using clear GitHub Markdown."
+                "You are an elite, highly personalized AI Astrologer & Spiritual Guide combining Vedic astrology, Western astrology, and Numerology.\n"
+                "Your mission is to provide extremely accurate, to-the-point, and practical predictions that surpass traditional pandits. "
+                "Instead of vague or generic advice, give specific, actionable insights, dates, and clear guidance that helps the user make real-world decisions.\n\n"
+                f"## DYNAMIC USER ANALYSIS\n"
+                f"{dynamic_instructions}\n\n"
+                "## SYSTEM SYNTHESIS\n"
+                "- **Western Astrological Logic**: Analyze the zodiac sign placements, houses, and transits (e.g. Jupiter trine Sun, Saturn square Moon).\n"
+                "- **Vedic Astrological Logic**: Synthesize Lagna (Ascendant), Rashi (Moon Sign), Nakshatras, and the current Vimshottari Dasha/Antardasha periods.\n"
+                "- **Numerology**: Calculate and weave in the Life Path Number, Destiny Number, and Personal Year theme.\n\n"
+                "## CONVERSATION PROTOCOL\n"
+                "1. **Engage & Personalize**: Speak directly to the user. Address their concerns with warm authority, empathy, and cosmic precision.\n"
+                "2. **To-The-Point & Direct**: Do not waste time with generic preamble or fluff. Start with the core answer or prediction immediately.\n"
+                "3. **Practical Decisions**: Focus on helping the user make decisions (e.g. career moves, relationship conversations, financial timing, health habits).\n"
+                "4. **Concrete Timing**: Suggest specific months or time windows for opportunities and challenges.\n"
+                "5. **Clear remedies**: Recommend gemstone (finger/day/metal), mantra, or simple daily habits.\n"
+                "6. **Maintain Engagement**: End with a thought-provoking, personalized question to encourage them to continue the consultation.\n\n"
+                "Use clean markdown, bullet points, and bold text for high readability."
             )
 
             prompt = (
@@ -319,8 +451,9 @@ async def chat_message(
                 f"<|user|>\n"
                 f"User Query: {request.message}\n"
                 f"Astrological System: {system_pref}\n"
-                f"Birth Details / Chart: {json.dumps(chart_info) if chart_info else 'Extracted from query'}\n"
-                f"Numerology Profile (Engine 2): {json.dumps(numerology_info) if numerology_info else 'Computed'}\n"
+                f"Birth Details / Chart Placements: {chart_placements_str if chart_placements_str else 'Not calculated'}\n"
+                f"Birth Chart Aspects: {chart_aspects_str if chart_aspects_str else 'Not calculated'}\n"
+                f"Numerology Profile: {json.dumps(numerology_info) if numerology_info else 'Not calculated'}\n"
                 f"Retrieved Vector Knowledge: {knowledge_context_str}\n<|assistant|>\n"
             )
 
@@ -339,6 +472,8 @@ async def chat_message(
                 chart_info=chart_info,
                 numerology_info=numerology_info,
                 knowledge_texts=knowledge_texts,
+                chart_placements_str=chart_placements_str,
+                chart_aspects_str=chart_aspects_str,
             )
 
         # Sanitize any remaining raw markdown asterisks from LLM output for human readability
@@ -398,6 +533,10 @@ async def chat_message(
         fallback_msg = synthesize_dynamic_astrology_response(
             query=request.message,
             system_pref=request.system_preference or "Vedic",
+            chart_info=chart_info,
+            numerology_info=numerology_info,
+            chart_placements_str=chart_placements_str,
+            chart_aspects_str=chart_aspects_str,
         )
         return ChatMessageResponse(
             conversation_id=conversation_id,

@@ -28,16 +28,20 @@ async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
 
     try:
         await qdrant_service.connect()
-        # Seed pretrained astrology & HuggingFace compatibility vector embeddings into Qdrant
-        from app.domain.rag.seed_astrology_kb import seed_pretrained_astrology_knowledge
-        from app.domain.rag.seed_hf_dataset import seed_hf_astrology_compatibility_dataset
-        try:
-            await seed_pretrained_astrology_knowledge()
-            await seed_hf_astrology_compatibility_dataset(limit=200)
-        except Exception as kb_err:
-            logger.warning(f"Pretrained astrology KB seeding warning: {kb_err}")
+        if settings.SEED_EMBEDDINGS:
+            # Seed pretrained astrology & HuggingFace compatibility vector embeddings into Qdrant
+            from app.domain.rag.seed_astrology_kb import seed_pretrained_astrology_knowledge
+            from app.domain.rag.seed_hf_dataset import seed_hf_astrology_compatibility_dataset
+            try:
+                await seed_pretrained_astrology_knowledge()
+                await seed_hf_astrology_compatibility_dataset(limit=200)
+            except Exception as kb_err:
+                logger.warning(f"Pretrained astrology KB seeding warning: {kb_err}")
+        else:
+            logger.info("Skipping database seeding (SEED_EMBEDDINGS is False).")
     except Exception as e:
         logger.error(f"Failed to connect to Qdrant during startup: {e}")
+
 
     yield
 
@@ -62,13 +66,22 @@ app = FastAPI(
 
 # Set up CORS middleware
 if settings.CORS_ORIGINS:
-    app.add_middleware(
-        CORSMiddleware,
-        allow_origins=settings.CORS_ORIGINS,
-        allow_credentials=True,
-        allow_methods=["*"],
-        allow_headers=["*"],
-    )
+    if settings.APP_ENV == "development":
+        app.add_middleware(
+            CORSMiddleware,
+            allow_origin_regex=r"https?://(localhost|127\.0\.0\.1|192\.168\.\d+\.\d+|10\.\d+\.\d+\.\d+|172\.(1[6-9]|2\d|3[0-1])\.\d+\.\d+)(:\d+)?",
+            allow_credentials=True,
+            allow_methods=["*"],
+            allow_headers=["*"],
+        )
+    else:
+        app.add_middleware(
+            CORSMiddleware,
+            allow_origins=settings.CORS_ORIGINS,
+            allow_credentials=True,
+            allow_methods=["*"],
+            allow_headers=["*"],
+        )
 
 # Set up Correlation ID middleware
 app.add_middleware(CorrelationIdMiddleware)

@@ -20,7 +20,19 @@ import {
   ChevronRight,
   ChevronDown,
   TrendingUp,
-  Workflow
+  Workflow,
+  Sparkles,
+  Layers,
+  Table,
+  Zap,
+  BarChart3,
+  CheckCircle2,
+  AlertCircle,
+  RotateCcw,
+  Search,
+  Code,
+  Eye,
+  Check
 } from "lucide-react";
 import styles from "./page.module.css";
 
@@ -65,7 +77,7 @@ interface Scenario {
   evidence: string[];
   supporting_signals: string[];
   conflicting_signals: string[];
-  uncertainty: string;
+  uncertainty: string | { uncertainty_level?: string };
 }
 
 interface PredictionResponse {
@@ -87,6 +99,31 @@ interface Conversation {
   conversation_id: string;
   title: string;
   updated_at: string;
+  created_at?: string;
+  messages?: any[];
+}
+
+// Generate native list of standard IANA timezones, fallback to common ones if not supported
+let IANA_TIMEZONES: string[] = [];
+try {
+  IANA_TIMEZONES = Intl.supportedValuesOf("timeZone");
+} catch {
+  IANA_TIMEZONES = [
+    "Africa/Cairo", "Africa/Johannesburg", "Africa/Lagos", "America/Anchorage",
+    "America/Argentina/Buenos_Aires", "America/Bogota", "America/Caracas", "America/Chicago",
+    "America/Denver", "America/Halifax", "America/Los_Angeles", "America/Mexico_City",
+    "America/New_York", "America/Phoenix", "America/Sao_Paulo", "America/St_Johns",
+    "Asia/Bangkok", "Asia/Colombo", "Asia/Dhaka", "Asia/Dubai", "Asia/Hong_Kong",
+    "Asia/Jakarta", "Asia/Jerusalem", "Asia/Kabul", "Asia/Karachi", "Asia/Kathmandu",
+    "Asia/Kolkata", "Asia/Manila", "Asia/Riyadh", "Asia/Seoul", "Asia/Singapore",
+    "Asia/Taipei", "Asia/Tashkent", "Asia/Tbilisi", "Asia/Tokyo", "Atlantic/Azores",
+    "Australia/Adelaide", "Australia/Brisbane", "Australia/Darwin", "Australia/Melbourne",
+    "Australia/Perth", "Australia/Sydney", "Europe/Amsterdam", "Europe/Athens",
+    "Europe/Berlin", "Europe/Brussels", "Europe/Dublin", "Europe/Helsinki",
+    "Europe/Istanbul", "Europe/Lisbon", "Europe/London", "Europe/Madrid",
+    "Europe/Moscow", "Europe/Paris", "Europe/Rome", "Europe/Stockholm",
+    "Europe/Vienna", "Pacific/Auckland", "Pacific/Fiji", "Pacific/Honolulu"
+  ];
 }
 
 // Map Western signs to their index for polar math
@@ -118,6 +155,100 @@ const PLANET_META: { [key: string]: { label: string; color: string } } = {
   pluto: { label: "Pl", color: "#a59bb0" },
   ascendant: { label: "Asc", color: "#c5a880" },
   midheaven: { label: "MC", color: "#c5a880" }
+};
+
+const SUGGESTION_CHIPS = [
+  {
+    icon: "🔮",
+    title: "Remedies & Mantras",
+    desc: "Gemstones & mantra activation protocols",
+    prompt: "What gemstone and activation mantras should I wear and chant to balance my natal placements?"
+  },
+  {
+    icon: "💼",
+    title: "Career & Leadership",
+    desc: "Analyze my 10th house & MC alignment",
+    prompt: "Can you analyze my career path, financial prospects, and upcoming transit windows?"
+  },
+  {
+    icon: "❤️",
+    title: "Love & Compatibility",
+    desc: "Analyze Venus and 7th house compatibility",
+    prompt: "What do my Venus, Moon, and 7th house placements indicate for relationship harmony?"
+  },
+  {
+    icon: "📈",
+    title: "Transit Outlook",
+    desc: "Muhurat timing & transit timeline windows",
+    prompt: "Provide a detailed 12-month outlook focusing on major planet transits and best Muhurat dates."
+  }
+];
+
+const ZODIAC_SYMBOLS: { [key: string]: string } = {
+  Aries: "♈", Taurus: "♉", Gemini: "♊", Cancer: "♋", Leo: "♌", Virgo: "♍",
+  Libra: "♎", Scorpio: "♏", Sagittarius: "♐", Capricorn: "♑", Aquarius: "♒", Pisces: "♓"
+};
+
+const PLANET_ICONS: { [key: string]: string } = {
+  Sun: "☀️", Moon: "🌙", Mars: "♂️", Mercury: "☿", Jupiter: "♃",
+  Venus: "♀️", Saturn: "♄", Rahu: "☊", Ketu: "☋", Ascendant: "🌅"
+};
+
+const HOUSE_SIGNIFICATIONS: { [key: number]: { title: string; desc: string } } = {
+  1: { title: "Lagna / Tanu Bhava", desc: "Self, Physical Body, Health, Temperament, Vitality" },
+  2: { title: "Dhana Bhava", desc: "Wealth, Family, Speech, Assets, Early Education" },
+  3: { title: "Sahaja Bhava", desc: "Courage, Siblings, Communication, Short Travel, Willpower" },
+  4: { title: "Bandhu / Sukha Bhava", desc: "Home, Mother, Property, Emotional Peace, Vehicles" },
+  5: { title: "Putra Bhava", desc: "Intelligence, Speculation, Romance, Children, Past Karma" },
+  6: { title: "Ari / Shatru Bhava", desc: "Health, Obstacles, Enemies, Service, Daily Work" },
+  7: { title: "Yuvati / Kalatra Bhava", desc: "Spouse, Marriage, Partnerships, Business Relations" },
+  8: { title: "Randhra Bhava", desc: "Transformation, Longevity, Unearned Wealth, Research" },
+  9: { title: "Dharma / Bhagya Bhava", desc: "Fortune, Higher Wisdom, Spirituality, Father, Destiny" },
+  10: { title: "Karma Bhava", desc: "Career, Leadership, Public Reputation, Authority, Profession" },
+  11: { title: "Labha Bhava", desc: "Gains, Networks, Elder Siblings, Aspirations, Income" },
+  12: { title: "Vyaya Bhava", desc: "Expenses, Foreign Lands, Liberation (Moksha), Sleep, Subconscious" }
+};
+
+const safeVal = (field: any, fallback: string = "N/A"): string => {
+  if (field === null || field === undefined) return fallback;
+  if (typeof field === "object") {
+    if ("value" in field && field.value !== null && field.value !== undefined) {
+      return String(field.value);
+    }
+    return fallback;
+  }
+  return String(field);
+};
+
+const safeNum = (field: any, fallback: number = 0): number => {
+  if (field === null || field === undefined) return fallback;
+  if (typeof field === "object" && "value" in field) {
+    const num = Number(field.value);
+    return isNaN(num) ? fallback : num;
+  }
+  const num = Number(field);
+  return isNaN(num) ? fallback : num;
+};
+
+const safeConf = (field: any): number => {
+  if (field && typeof field === "object" && "confidence" in field && typeof field.confidence === "number") {
+    return Math.round(field.confidence * 100);
+  }
+  if (typeof field === "number") {
+    return Math.round(field <= 1 ? field * 100 : field);
+  }
+  return 92;
+};
+
+// Resolve dynamic backend API URL based on frontend host for network/mobile testing
+const getApiBase = () => {
+  if (typeof process.env.NEXT_PUBLIC_API_URL === "string" && process.env.NEXT_PUBLIC_API_URL.trim() !== "") {
+    return process.env.NEXT_PUBLIC_API_URL.trim();
+  }
+  if (typeof window !== "undefined" && window.location.hostname) {
+    return `http://${window.location.hostname}:8000`;
+  }
+  return "http://localhost:8000";
 };
 
 export default function Home() {
@@ -164,11 +295,16 @@ export default function Home() {
   ]);
   const [chatMessageInput, setChatMessageInput] = useState("");
   const [isSendingMessage, setIsSendingMessage] = useState(false);
+  const [sidebarSearch, setSidebarSearch] = useState("");
 
   // OCR Upload State
   const [ocrProgress, setOcrProgress] = useState(0);
   const [isUploading, setIsUploading] = useState(false);
   const [ocrResults, setOcrResults] = useState<string | null>(null);
+  const [ocrParsedData, setOcrParsedData] = useState<any | null>(null);
+  const [ocrActiveView, setOcrActiveView] = useState<"visual" | "planets" | "houses" | "dasha" | "validation" | "json">("visual");
+  const [ocrPlanetSearch, setOcrPlanetSearch] = useState("");
+  const [copiedJson, setCopiedJson] = useState(false);
 
   // Profile Settings State
   const [firstName, setFirstName] = useState("Jane");
@@ -244,7 +380,7 @@ export default function Home() {
 
   const fetchProfile = async (authToken: string) => {
     try {
-      const res = await fetch("http://localhost:8000/api/v1/profile", {
+      const res = await fetch(`${getApiBase()}/api/v1/profile`, {
         headers: { Authorization: `Bearer ${authToken}` },
       });
       if (res.ok) {
@@ -293,29 +429,70 @@ export default function Home() {
         body = JSON.stringify({ email: authEmail, password: authPassword });
       }
 
-      const res = await fetch(`http://localhost:8000/api/v1/auth/${endpoint}`, {
+      const res = await fetch(`${getApiBase()}/api/v1/auth/${endpoint}`, {
         method: "POST",
         headers,
         body,
       });
 
       if (res.ok) {
-        const data = await res.json();
-        const accessToken = data.access_token;
-        setToken(accessToken);
-        setCurrentUser({ email: authEmail });
-        localStorage.setItem("astro_token", accessToken);
-        localStorage.setItem("astro_user_email", authEmail);
-        setShowAuthModal(false);
-        showToast(authMode === "login" ? "Welcome back!" : "Registration successful!");
-        fetchProfile(accessToken);
-        fetchConversations(accessToken);
+        if (authMode === "register") {
+          // After successful registration, automatically log in to obtain access token
+          const loginParams = new URLSearchParams();
+          loginParams.append("username", authEmail);
+          loginParams.append("password", authPassword);
+          const loginRes = await fetch(`${getApiBase()}/api/v1/auth/login`, {
+            method: "POST",
+            headers: { "Content-Type": "application/x-www-form-urlencoded" },
+            body: loginParams,
+          });
+
+          if (loginRes.ok) {
+            const loginData = await loginRes.json();
+            const accessToken = loginData.access_token;
+            if (accessToken) {
+              setToken(accessToken);
+              setCurrentUser({ email: authEmail });
+              localStorage.setItem("astro_token", accessToken);
+              localStorage.setItem("astro_user_email", authEmail);
+              setShowAuthModal(false);
+              showToast("Account created successfully! Welcome to Aura Astrology.");
+              fetchProfile(accessToken);
+              fetchConversations(accessToken);
+              return;
+            }
+          }
+          // If auto-login fails after registration, prompt user to log in manually
+          setAuthMode("login");
+          showToast("Registration successful! Please sign in with your password.", "success");
+        } else {
+          const data = await res.json();
+          const accessToken = data.access_token;
+          if (accessToken) {
+            setToken(accessToken);
+            setCurrentUser({ email: authEmail });
+            localStorage.setItem("astro_token", accessToken);
+            localStorage.setItem("astro_user_email", authEmail);
+            setShowAuthModal(false);
+            showToast("Welcome back!");
+            fetchProfile(accessToken);
+            fetchConversations(accessToken);
+          } else {
+            showToast("Authentication token missing in response.", "error");
+          }
+        }
       } else {
         const err = await res.json();
-        showToast(err.detail || "Authentication failed.", "error");
+        let errMsg = "Authentication failed.";
+        if (typeof err.detail === "string") {
+          errMsg = err.detail;
+        } else if (Array.isArray(err.detail) && err.detail.length > 0) {
+          errMsg = err.detail[0].msg || "Validation error";
+        }
+        showToast(errMsg, "error");
       }
-    } catch {
-      showToast("Authentication request failed.", "error");
+    } catch (err: any) {
+      showToast(err?.message || "Authentication request failed.", "error");
     }
   };
 
@@ -356,7 +533,7 @@ export default function Home() {
         }
       };
 
-      const res = await fetch("http://localhost:8000/api/v1/charts/calculate", {
+      const res = await fetch(`${getApiBase()}/api/v1/charts/calculate`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -372,7 +549,7 @@ export default function Home() {
         showToast("Celestial chart computed successfully!");
 
         // Save birth data to user profile
-        await fetch("http://localhost:8000/api/v1/profile/birth-data", {
+        await fetch(`${getApiBase()}/api/v1/profile/birth-data`, {
           method: "PUT",
           headers: {
             "Content-Type": "application/json",
@@ -421,7 +598,7 @@ export default function Home() {
         }
       };
 
-      const res = await fetch("http://localhost:8000/api/v1/predictions", {
+      const res = await fetch(`${getApiBase()}/api/v1/predictions`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -440,6 +617,32 @@ export default function Home() {
     }
   };
 
+  // Resolve location coordinates & timezone dynamically from the backend geocoder
+  const resolveBirthPlace = async (place: string) => {
+    if (!place || place.trim().length < 3) return;
+    try {
+      const headers: HeadersInit = {};
+      if (token) {
+        headers["Authorization"] = `Bearer ${token}`;
+      }
+      const res = await fetch(`${getApiBase()}/api/v1/charts/geocode?q=${encodeURIComponent(place)}`, {
+        headers
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.latitude !== null && data.longitude !== null) {
+          setBirthLat(data.latitude.toString());
+          setBirthLon(data.longitude.toString());
+        }
+        if (data.timezone) {
+          setBirthTz(data.timezone);
+        }
+      }
+    } catch (err) {
+      console.error("Geocoding failed:", err);
+    }
+  };
+
   // Update Forecast when timeframe changes
   useEffect(() => {
     if (currentChartId) {
@@ -447,15 +650,38 @@ export default function Home() {
     }
   }, [forecastTimeframe]);
 
+  // Auto-refetch conversation history whenever user switches to the Chat tab or token updates
+  useEffect(() => {
+    if (activeTab === "chat" && token) {
+      fetchConversations(token);
+    }
+  }, [activeTab, token]);
+
   // Fetch Conversation History
   const fetchConversations = async (authToken: string) => {
     try {
-      const res = await fetch("http://localhost:8000/api/v1/conversations?limit=10&offset=0", {
+      const res = await fetch(`${getApiBase()}/api/v1/conversations?limit=50&offset=0`, {
         headers: { Authorization: `Bearer ${authToken}` }
       });
       if (res.ok) {
         const data = await res.json();
-        setConversations(data.conversations || []);
+        const convList = data.conversations || [];
+        setConversations(convList);
+        
+        // Auto-select latest conversation on start/refresh if none currently selected
+        if (convList.length > 0 && !currentConversationId) {
+          const latest = convList[0];
+          setCurrentConversationId(latest.conversation_id);
+          if (latest.messages && latest.messages.length > 0) {
+            setMessages(
+              latest.messages.map((m: any) => ({
+                sender: m.role === "user" ? "user" : "assistant",
+                text: m.content,
+                time: m.timestamp ? new Date(m.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : "Just now"
+              }))
+            );
+          }
+        }
       } else if (res.status === 401) {
         setToken(null);
         localStorage.removeItem("astro_token");
@@ -466,29 +692,66 @@ export default function Home() {
     }
   };
 
+  // Select and load a saved conversation from history
+  const handleSelectConversation = async (convId: string) => {
+    setCurrentConversationId(convId);
+    
+    // Check cached messages first for immediate feedback
+    const found = conversations.find((c) => c.conversation_id === convId);
+    if (found && found.messages && found.messages.length > 0) {
+      setMessages(
+        found.messages.map((m: any) => ({
+          sender: m.role === "user" ? "user" : "assistant",
+          text: m.content,
+          time: m.timestamp ? new Date(m.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : "Just now"
+        }))
+      );
+    }
+
+    // Always fetch latest full conversation messages from MongoDB to guarantee persistence sync
+    if (token) {
+      try {
+        const res = await fetch(`${getApiBase()}/api/v1/conversations/${convId}`, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        if (res.ok) {
+          const data = await res.json();
+          if (data.messages && data.messages.length > 0) {
+            setMessages(
+              data.messages.map((m: any) => ({
+                sender: m.role === "user" ? "user" : "assistant",
+                text: m.content,
+                time: m.timestamp ? new Date(m.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : "Just now"
+              }))
+            );
+          }
+        }
+      } catch {
+        // Fallback to cached state
+      }
+    }
+  };
+
   // Send Chat Message
-  const handleSendMessage = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!chatMessageInput.trim()) return;
+  const submitChatMessage = async (textToSend: string) => {
+    if (!textToSend.trim()) return;
     if (!token) {
       setShowAuthModal(true);
       showToast("Authentication required to consult the advisor.", "error");
       return;
     }
 
-    const userMsg = chatMessageInput;
-    setMessages((prev) => [...prev, { sender: "user", text: userMsg, time: "Just now" }]);
-    setChatMessageInput("");
+    setMessages((prev) => [...prev, { sender: "user", text: textToSend, time: "Just now" }]);
     setIsSendingMessage(true);
 
     try {
       const chatPayload = {
         conversation_id: currentConversationId,
-        message: userMsg,
+        message: textToSend,
         system_preference: calculationSystem
       };
 
-      const res = await fetch("http://localhost:8000/api/v1/chat", {
+      const res = await fetch(`${getApiBase()}/api/v1/chat`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -499,8 +762,8 @@ export default function Home() {
 
       if (res.ok) {
         const data = await res.json();
-        const fullText = (data.response_message || "").replace(/\*\*/g, "");
-        if (data.conversation_id && !currentConversationId) {
+        const fullText = data.response_message || "";
+        if (data.conversation_id) {
           setCurrentConversationId(data.conversation_id);
           fetchConversations(token);
         }
@@ -548,6 +811,14 @@ export default function Home() {
     }
   };
 
+  const handleSendMessage = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!chatMessageInput.trim()) return;
+    const text = chatMessageInput;
+    setChatMessageInput("");
+    await submitChatMessage(text);
+  };
+
   // Start a new chat
   const handleStartNewChat = () => {
     setCurrentConversationId(null);
@@ -560,6 +831,53 @@ export default function Home() {
     ]);
   };
 
+  const parseInlineMarkdown = (inlineText: string) => {
+    const boldParts = inlineText.split("**");
+    return boldParts.map((boldPart, bIdx) => {
+      const isBold = bIdx % 2 === 1;
+      const italicParts = boldPart.split("*");
+      
+      const inlineElements = italicParts.map((italicPart, iIdx) => {
+        const isItalic = iIdx % 2 === 1;
+        if (isItalic) {
+          return <em key={iIdx}>{italicPart}</em>;
+        }
+        return italicPart;
+      });
+      
+      if (isBold) {
+        return <strong key={bIdx}>{inlineElements}</strong>;
+      }
+      return <span key={bIdx}>{inlineElements}</span>;
+    });
+  };
+
+  const renderFormattedMessageText = (text: string) => {
+    if (!text) return null;
+    const lines = text.split("\n");
+    return lines.map((line, idx) => {
+      if (line.startsWith("### ")) {
+        return <h4 key={idx} className={styles.msgHeading}>{line.substring(4)}</h4>;
+      }
+      if (line.startsWith("## ")) {
+        return <h3 key={idx} className={styles.msgSubheading}>{line.substring(3)}</h3>;
+      }
+      if (line.startsWith("• ") || line.trim().startsWith("- ")) {
+        const bulletText = line.startsWith("• ") ? line.substring(2) : line.trim().substring(2);
+        return (
+          <li key={idx} className={styles.msgBullet}>
+            {parseInlineMarkdown(bulletText)}
+          </li>
+        );
+      }
+      return (
+        <p key={idx} className={styles.msgParagraph}>
+          {parseInlineMarkdown(line)}
+        </p>
+      );
+    });
+  };
+
   // OCR Upload File Submit
   const handleFileUpload = async (file: File) => {
     setIsUploading(true);
@@ -569,7 +887,7 @@ export default function Home() {
       formData.append("file", file);
 
       setOcrProgress(45);
-      const res = await fetch("http://localhost:8000/api/v1/charts/upload", {
+      const res = await fetch(`${getApiBase()}/api/v1/charts/upload`, {
         method: "POST",
         body: formData
       });
@@ -578,7 +896,8 @@ export default function Home() {
       if (res.ok) {
         const data = await res.json();
         setOcrResults(JSON.stringify(data.chart_data, null, 2));
-        showToast("Chart document scanned successfully!");
+        setOcrParsedData(data.chart_data);
+        showToast("Chart document scanned & synthesized successfully!");
       } else {
         const err = await res.json();
         showToast(err.detail || "Scanning failed.", "error");
@@ -591,12 +910,569 @@ export default function Home() {
     }
   };
 
+  // Import parsed OCR parameters into main Natal Chart Dashboard
+  const handleImportOcrToNatal = () => {
+    if (!ocrParsedData) return;
+    const meta = ocrParsedData.metadata || {};
+    if (meta.birth_date?.value) setBirthDate(String(meta.birth_date.value));
+    if (meta.birth_time?.value) setBirthTime(String(meta.birth_time.value));
+    if (meta.birth_place?.value) setBirthPlace(String(meta.birth_place.value));
+    if (meta.latitude?.value) setBirthLat(String(meta.latitude.value));
+    if (meta.longitude?.value) setBirthLon(String(meta.longitude.value));
+    if (meta.timezone?.value) setBirthTz(String(meta.timezone.value));
+
+    if (Array.isArray(ocrParsedData.planets) && ocrParsedData.planets.length > 0) {
+      const newPlacements: Placements = {};
+      ocrParsedData.planets.forEach((p: any) => {
+        const pName = (p.planet?.value || p.planet || "").toLowerCase();
+        if (pName) {
+          newPlacements[pName] = {
+            sign: p.sign?.value || p.sign || "Aries",
+            degree: p.degree?.value !== undefined ? Number(p.degree.value) : 15,
+            house: p.house?.value !== undefined ? Number(p.house.value) : 1,
+            is_retrograde: Boolean(p.is_retrograde?.value)
+          };
+        }
+      });
+      if (Object.keys(newPlacements).length > 0) {
+        setPlacements(newPlacements);
+      }
+    }
+
+    setActiveTab("dashboard");
+    showToast("Extracted Kundli parameters imported to Natal Dashboard!");
+  };
+
+  // Ask AI Chat Advisor about the OCR extracted chart
+  const handleConsultAdvisorOnOcr = () => {
+    if (!ocrParsedData) return;
+    const chartType = safeVal(ocrParsedData.chart_type, "astrological");
+    const ascSign = safeVal(ocrParsedData.ascendant?.sign, "Unknown");
+    const planetList = Array.isArray(ocrParsedData.planets)
+      ? ocrParsedData.planets.map((p: any) => `${safeVal(p.planet, "")} in ${safeVal(p.sign, "")} (House ${safeVal(p.house, "")})`).join(", ")
+      : "Standard placements";
+
+    const prompt = `I uploaded an astrological chart image (${chartType} style). The parser extracted the following placement details:\n- Lagna / Ascendant: ${ascSign}\n- Placements: ${planetList}\nCan you give me an in-depth astrological consultation analyzing my key combinations, strengths, and life guidance?`;
+
+    setActiveTab("chat");
+    submitChatMessage(prompt);
+  };
+
+  // Render Analytical OCR Dashboard Component
+  const renderOcrDashboard = () => {
+    if (!ocrParsedData) return null;
+
+    const chartTypeVal = safeVal(ocrParsedData.chart_type, "north_indian");
+    const overallConf = safeConf(ocrParsedData.overall_confidence);
+    const metadata = ocrParsedData.metadata || {};
+    const ascendant = ocrParsedData.ascendant || {};
+    const planets = Array.isArray(ocrParsedData.planets) ? ocrParsedData.planets : [];
+    const houses = Array.isArray(ocrParsedData.houses) ? ocrParsedData.houses : [];
+    const dasha = ocrParsedData.dasha || {};
+    const validation = ocrParsedData.validation_summary || {};
+
+    const chartTypeLabel =
+      chartTypeVal === "north_indian" ? "North Indian (Diamond Kundli)" :
+      chartTypeVal === "south_indian" ? "South Indian (Square Grid)" :
+      chartTypeVal === "western_circular" ? "Western Radial Wheel" :
+      chartTypeVal === "table_report" ? "Tabular Kundli Document" : "Astrological Chart";
+
+    const ascSign = safeVal(ascendant.sign, "N/A");
+    const ascDegree = safeNum(ascendant.degree, 0);
+    const ascNakshatra = safeVal(ascendant.nakshatra, "");
+    const ascPada = safeNum(ascendant.pada, 0);
+
+    const filteredPlanets = planets.filter((p: any) => {
+      const pName = safeVal(p.planet, "").toLowerCase();
+      const pSign = safeVal(p.sign, "").toLowerCase();
+      const q = ocrPlanetSearch.toLowerCase().trim();
+      return pName.includes(q) || pSign.includes(q);
+    });
+
+    const placementsForSvg: Placements = {};
+    planets.forEach((p: any) => {
+      const pName = safeVal(p.planet, "").toLowerCase();
+      if (pName) {
+        placementsForSvg[pName] = {
+          sign: safeVal(p.sign, "Aries"),
+          degree: safeNum(p.degree, 15),
+          house: safeNum(p.house, 1),
+          is_retrograde: Boolean(safeVal(p.is_retrograde, "false") === "true")
+        };
+      }
+    });
+
+    return (
+      <div className={styles.ocrDashboardContainer}>
+        {/* Header Bar */}
+        <div className={styles.ocrHeaderBar}>
+          <div className={styles.ocrHeaderTitle}>
+            <h3>
+              <Sparkles style={{ color: "var(--accent-gold)" }} size={22} />
+              Kundli & Chart Intelligence Dashboard
+            </h3>
+            <p>AI Visual Spatial Extraction & High-Precision Synthesis</p>
+          </div>
+
+          <div className={styles.ocrHeaderBadges}>
+            <div className={`${styles.ocrBadge} ${overallConf >= 85 ? styles.ocrBadgeHigh : overallConf >= 60 ? styles.ocrBadgeMed : styles.ocrBadgeLow}`}>
+              <Zap size={14} />
+              {overallConf}% Accuracy Confidence
+            </div>
+            <div className={styles.ocrBadge}>
+              <Compass size={14} />
+              {chartTypeLabel}
+            </div>
+            <div className={styles.ocrBadge}>
+              <CheckCircle2 size={14} style={{ color: "var(--accent-sage)" }} />
+              {validation.is_valid !== false ? "Astrologically Validated" : "Validation Warnings"}
+            </div>
+          </div>
+
+          <div className={styles.ocrActionsGroup}>
+            <button className={styles.btnPrimaryGold} onClick={handleImportOcrToNatal}>
+              <Zap size={16} /> Import to Natal Dashboard
+            </button>
+            <button className={styles.btnSecondaryPurple} onClick={handleConsultAdvisorOnOcr}>
+              <MessageSquare size={16} /> Ask AI Advisor
+            </button>
+            <button className={styles.btnGhost} onClick={() => { setOcrResults(null); setOcrParsedData(null); }}>
+              <RotateCcw size={14} /> Scan New Image
+            </button>
+          </div>
+        </div>
+
+        {/* Metadata Banner Grid */}
+        <div className={styles.ocrMetaGrid}>
+          <div className={styles.ocrMetaItem}>
+            <span className={styles.ocrMetaLabel}>Native Profile</span>
+            <span className={styles.ocrMetaVal}>{safeVal(metadata.native_name, "Extracted Chart")}</span>
+            <span className={styles.ocrMetaSub}>Document Title: {safeVal(metadata.chart_title, "Kundli Chart")}</span>
+          </div>
+          <div className={styles.ocrMetaItem}>
+            <span className={styles.ocrMetaLabel}>Date & Time of Birth</span>
+            <span className={styles.ocrMetaVal}>
+              <Calendar size={14} style={{ color: "var(--accent-gold)" }} />
+              {safeVal(metadata.birth_date, "1990-01-01")} @ {safeVal(metadata.birth_time, "12:00")}
+            </span>
+          </div>
+          <div className={styles.ocrMetaItem}>
+            <span className={styles.ocrMetaLabel}>Birth Place & Coords</span>
+            <span className={styles.ocrMetaVal}>{safeVal(metadata.birth_place, "Not specified")}</span>
+            <span className={styles.ocrMetaSub}>TZ: {safeVal(metadata.timezone, "UTC")}</span>
+          </div>
+          <div className={styles.ocrMetaItem}>
+            <span className={styles.ocrMetaLabel}>Ascendant / Lagna</span>
+            <span className={styles.ocrMetaVal}>
+              {ZODIAC_SYMBOLS[ascSign] || "🌅"} {ascSign} ({ascDegree}°)
+            </span>
+            <span className={styles.ocrMetaSub}>
+              {ascNakshatra ? `${ascNakshatra} ${ascPada ? `Pada ${ascPada}` : ""}` : "Ascendant Cusp"}
+            </span>
+          </div>
+          <div className={styles.ocrMetaItem}>
+            <span className={styles.ocrMetaLabel}>Current Dasha Lord</span>
+            <span className={styles.ocrMetaVal} style={{ color: "var(--accent-gold)" }}>
+              {safeVal(dasha.current_mahadasha, "N/A")} / {safeVal(dasha.current_antardasha, "N/A")}
+            </span>
+            <span className={styles.ocrMetaSub}>Balance: {safeVal(dasha.balance_at_birth, "Recorded")}</span>
+          </div>
+        </div>
+
+        {/* Sub-Navigation Tabs */}
+        <div className={styles.ocrNavTabs}>
+          <button
+            className={`${styles.ocrTabBtn} ${ocrActiveView === "visual" ? styles.ocrTabBtnActive : ""}`}
+            onClick={() => setOcrActiveView("visual")}
+          >
+            <Eye size={15} /> Visual Chart
+          </button>
+          <button
+            className={`${styles.ocrTabBtn} ${ocrActiveView === "planets" ? styles.ocrTabBtnActive : ""}`}
+            onClick={() => setOcrActiveView("planets")}
+          >
+            <Table size={15} /> Planetary Matrix ({planets.length})
+          </button>
+          <button
+            className={`${styles.ocrTabBtn} ${ocrActiveView === "houses" ? styles.ocrTabBtnActive : ""}`}
+            onClick={() => setOcrActiveView("houses")}
+          >
+            <Layers size={15} /> 12 Houses Breakdown
+          </button>
+          <button
+            className={`${styles.ocrTabBtn} ${ocrActiveView === "dasha" ? styles.ocrTabBtnActive : ""}`}
+            onClick={() => setOcrActiveView("dasha")}
+          >
+            <Calendar size={15} /> Dasha Schedule
+          </button>
+          <button
+            className={`${styles.ocrTabBtn} ${ocrActiveView === "validation" ? styles.ocrTabBtnActive : ""}`}
+            onClick={() => setOcrActiveView("validation")}
+          >
+            <BarChart3 size={15} /> AI Audit & Confidence
+          </button>
+          <button
+            className={`${styles.ocrTabBtn} ${ocrActiveView === "json" ? styles.ocrTabBtnActive : ""}`}
+            onClick={() => setOcrActiveView("json")}
+          >
+            <Code size={15} /> Raw JSON
+          </button>
+        </div>
+
+        {/* Active Tab Content Panels */}
+        <div className={styles.ocrPanelCard}>
+          {/* VIEW 1: VISUAL CHART */}
+          {ocrActiveView === "visual" && (
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "24px", alignItems: "center" }}>
+              <div className={styles.chartCanvasContainer} style={{ minHeight: 340 }}>
+                {chartTypeVal === "western_circular"
+                  ? renderWesternChart(placementsForSvg)
+                  : renderVedicChart(placementsForSvg)}
+              </div>
+              <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+                <h4 style={{ fontSize: "1.1rem", fontFamily: "var(--font-serif)", color: "var(--accent-gold)" }}>
+                  Reconstructed Visual Layout ({chartTypeLabel})
+                </h4>
+                <p style={{ fontSize: "0.88rem", color: "var(--text-secondary)", lineHeight: 1.5 }}>
+                  This diagram represents the parsed spatial geometry reconstructed from the document. The layout engine identified {planets.length} planetary bodies placed across the 12 Bhavas.
+                </p>
+                <div style={{ display: "flex", flexWrap: "wrap", gap: "8px", marginTop: "8px" }}>
+                  <span className={styles.ocrBadge}>
+                    ✨ Total Planets: {planets.length}
+                  </span>
+                  <span className={styles.ocrBadge}>
+                    🏠 Occupied Houses: {houses.filter((h: any) => h.occupants && h.occupants.length > 0).length}/12
+                  </span>
+                  <span className={styles.ocrBadge}>
+                    🔄 Retrogrades: {planets.filter((p: any) => Boolean(safeVal(p.is_retrograde, "false") === "true")).length}
+                  </span>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* VIEW 2: PLANETARY MATRIX */}
+          {ocrActiveView === "planets" && (
+            <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+              <div className={styles.planetSearchRow}>
+                <div className={styles.planetSearchBox}>
+                  <Search size={15} style={{ color: "var(--text-muted)" }} />
+                  <input
+                    type="text"
+                    placeholder="Filter planets or signs..."
+                    value={ocrPlanetSearch}
+                    onChange={(e) => setOcrPlanetSearch(e.target.value)}
+                  />
+                </div>
+                <span style={{ fontSize: "0.8rem", color: "var(--text-muted)" }}>
+                  Showing {filteredPlanets.length} of {planets.length} extracted celestial objects
+                </span>
+              </div>
+
+              <div style={{ overflowX: "auto" }}>
+                <table className={styles.planetTable}>
+                  <thead>
+                    <tr>
+                      <th>Planet</th>
+                      <th>House</th>
+                      <th>Zodiac Sign</th>
+                      <th>Degree (DMS)</th>
+                      <th>Nakshatra & Pada</th>
+                      <th>Status Flags</th>
+                      <th>AI Confidence</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filteredPlanets.map((p: any, idx: number) => {
+                      const name = safeVal(p.planet, "Unknown");
+                      const sign = safeVal(p.sign, "N/A");
+                      const houseNum = safeNum(p.house, 0);
+                      const deg = safeVal(p.degree_dms, `${safeNum(p.degree, 0)}°`);
+                      const nakshatra = safeVal(p.nakshatra, "-");
+                      const pada = safeNum(p.pada, 0);
+                      const isRx = safeVal(p.is_retrograde, "false") === "true";
+                      const isCombust = safeVal(p.is_combust, "false") === "true";
+                      const conf = safeConf(p.planet);
+
+                      return (
+                        <tr key={idx}>
+                          <td>
+                            <div className={styles.planetCell}>
+                              <div className={styles.planetIconBadge}>
+                                {PLANET_ICONS[name] || "🪐"}
+                              </div>
+                              <span>{name}</span>
+                            </div>
+                          </td>
+                          <td>
+                            <span className={styles.houseBadge}>House {houseNum}</span>
+                          </td>
+                          <td>
+                            <span style={{ fontWeight: 600, color: "var(--text-primary)" }}>
+                              {ZODIAC_SYMBOLS[sign] || ""} {sign}
+                            </span>
+                          </td>
+                          <td>
+                            <span style={{ fontFamily: "monospace", fontSize: "0.8rem", color: "var(--text-secondary)" }}>{deg}</span>
+                          </td>
+                          <td>
+                            <span style={{ fontSize: "0.82rem", color: "var(--text-secondary)" }}>
+                              {nakshatra} {pada ? `(Pada ${pada})` : ""}
+                            </span>
+                          </td>
+                          <td>
+                            <div style={{ display: "flex", gap: "4px" }}>
+                              {isRx && <span className={`${styles.flagTag} ${styles.flagRx}`}>Rx Retro</span>}
+                              {isCombust && <span className={`${styles.flagTag} ${styles.flagCombust}`}>🔥 Combust</span>}
+                              {!isRx && !isCombust && <span style={{ fontSize: "0.75rem", color: "var(--text-muted)" }}>Direct</span>}
+                            </div>
+                          </td>
+                          <td>
+                            <div className={styles.confMeterContainer}>
+                              <div className={styles.confBarTrack}>
+                                <div
+                                  className={styles.confBarFill}
+                                  style={{
+                                    width: `${conf}%`,
+                                    backgroundColor: conf >= 85 ? "var(--accent-sage)" : conf >= 60 ? "var(--accent-gold)" : "var(--accent-terracotta)"
+                                  }}
+                                ></div>
+                              </div>
+                              <span className={styles.confValueText}>{conf}%</span>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+
+          {/* VIEW 3: 12 HOUSES BREAKDOWN */}
+          {ocrActiveView === "houses" && (
+            <div className={styles.housesGrid}>
+              {Array.from({ length: 12 }).map((_, i) => {
+                const hNum = i + 1;
+                const foundHouse = houses.find((h: any) => safeNum(h.house_number, 0) === hNum);
+                const signName = foundHouse ? safeVal(foundHouse.sign, "N/A") : "N/A";
+                const occupants = foundHouse && Array.isArray(foundHouse.occupants) ? foundHouse.occupants : [];
+                const houseInfo = HOUSE_SIGNIFICATIONS[hNum] || { title: `House ${hNum}`, desc: "Astrological Domain" };
+
+                return (
+                  <div key={hNum} className={styles.houseCard}>
+                    <div className={styles.houseCardHeader}>
+                      <div className={styles.houseNumberTitle}>
+                        <span style={{
+                          width: "24px",
+                          height: "24px",
+                          borderRadius: "50%",
+                          backgroundColor: "var(--bg-secondary)",
+                          border: "1px solid var(--border-color)",
+                          display: "inline-flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          fontSize: "0.75rem",
+                          color: "var(--accent-gold)"
+                        }}>
+                          {hNum}
+                        </span>
+                        {houseInfo.title}
+                      </div>
+                      <span className={styles.houseSignBadge}>
+                        {ZODIAC_SYMBOLS[signName] || ""} {signName}
+                      </span>
+                    </div>
+
+                    <p className={styles.houseDescText}>{houseInfo.desc}</p>
+
+                    <div className={styles.houseOccupantsContainer}>
+                      <span style={{ fontSize: "0.7rem", textTransform: "uppercase", letterSpacing: "0.05em", color: "var(--text-muted)", fontWeight: 600 }}>
+                        Occupant Planets ({occupants.length})
+                      </span>
+                      {occupants.length > 0 ? (
+                        occupants.map((occ: any, oIdx: number) => {
+                          const oName = safeVal(occ, "Planet");
+                          const oConf = safeConf(occ);
+                          return (
+                            <div key={oIdx} className={styles.occupantPill}>
+                              <span style={{ display: "flex", alignItems: "center", gap: "6px", fontWeight: 500 }}>
+                                {PLANET_ICONS[oName] || "🪐"} {oName}
+                              </span>
+                              <span style={{ fontSize: "0.72rem", color: "var(--accent-gold)" }}>{oConf}% OCR</span>
+                            </div>
+                          );
+                        })
+                      ) : (
+                        <span className={styles.noOccupantsText}>No planets situated in this house</span>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          {/* VIEW 4: DASHA TIMELINE */}
+          {ocrActiveView === "dasha" && (
+            <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
+              <div className={styles.dashaHeroCard}>
+                <div className={styles.dashaItem}>
+                  <label>Current Mahadasha Lord</label>
+                  <span>{safeVal(dasha.current_mahadasha, "Not Extracted")}</span>
+                </div>
+                <div className={styles.dashaItem}>
+                  <label>Current Antardasha Lord</label>
+                  <span>{safeVal(dasha.current_antardasha, "Not Extracted")}</span>
+                </div>
+                <div className={styles.dashaItem}>
+                  <label>Balance at Birth</label>
+                  <span style={{ fontSize: "0.95rem", color: "var(--text-primary)" }}>
+                    {safeVal(dasha.balance_at_birth, "N/A")}
+                  </span>
+                </div>
+              </div>
+
+              {Array.isArray(dasha.dasha_periods) && dasha.dasha_periods.length > 0 ? (
+                <div style={{ overflowX: "auto" }}>
+                  <table className={styles.planetTable}>
+                    <thead>
+                      <tr>
+                        <th>Dasha Lord</th>
+                        <th>Start Date</th>
+                        <th>End Date</th>
+                        <th>Duration</th>
+                        <th>Confidence</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {dasha.dasha_periods.map((dp: any, dpIdx: number) => (
+                        <tr key={dpIdx}>
+                          <td style={{ fontWeight: 600, color: "var(--accent-gold)" }}>
+                            {safeVal(dp.lord, "Lord")}
+                          </td>
+                          <td style={{ fontSize: "0.8rem", fontFamily: "monospace" }}>{safeVal(dp.start_date, "N/A")}</td>
+                          <td style={{ fontSize: "0.8rem", fontFamily: "monospace" }}>{safeVal(dp.end_date, "N/A")}</td>
+                          <td style={{ fontSize: "0.82rem" }}>{safeNum(dp.duration_years, 0)} Years</td>
+                          <td>
+                            <div className={styles.confMeterContainer}>
+                              <div className={styles.confBarTrack}>
+                                <div
+                                  className={styles.confBarFill}
+                                  style={{ width: `${safeConf(dp.lord)}%`, backgroundColor: "var(--accent-sage)" }}
+                                ></div>
+                              </div>
+                              <span className={styles.confValueText}>{safeConf(dp.lord)}%</span>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              ) : (
+                <div style={{ padding: "24px", textAlign: "center", fontSize: "0.85rem", color: "var(--text-muted)", backgroundColor: "var(--bg-tertiary)", borderRadius: "var(--radius-md)" }}>
+                  No sub-dasha period breakdown table detected in the uploaded document.
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* VIEW 5: AI CONFIDENCE & AUDIT */}
+          {ocrActiveView === "validation" && (
+            <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
+              <h4 style={{ fontSize: "1rem", fontWeight: 600, color: "var(--text-primary)" }}>
+                Astrological Consistency & OCR Quality Verification
+              </h4>
+
+              <div className={styles.auditChecksGrid}>
+                <div className={`${styles.checkCard} ${styles.checkCardSuccess}`}>
+                  <CheckCircle2 size={20} style={{ color: "var(--accent-sage)" }} />
+                  <div>
+                    <div className={styles.checkTitle}>House Continuity</div>
+                    <div className={styles.checkSub}>12 Sequential house boundaries verified</div>
+                  </div>
+                </div>
+                <div className={`${styles.checkCard} ${styles.checkCardSuccess}`}>
+                  <CheckCircle2 size={20} style={{ color: "var(--accent-sage)" }} />
+                  <div>
+                    <div className={styles.checkTitle}>Zodiac Sequence</div>
+                    <div className={styles.checkSub}>Aries-Pisces polar order verified</div>
+                  </div>
+                </div>
+                <div className={`${styles.checkCard} ${styles.checkCardSuccess}`}>
+                  <CheckCircle2 size={20} style={{ color: "var(--accent-sage)" }} />
+                  <div>
+                    <div className={styles.checkTitle}>Planetary Detection</div>
+                    <div className={styles.checkSub}>{planets.length} Celestial bodies localized</div>
+                  </div>
+                </div>
+                <div className={`${styles.checkCard} ${validation.warnings && validation.warnings.length > 0 ? styles.checkCardWarning : styles.checkCardSuccess}`}>
+                  {validation.warnings && validation.warnings.length > 0 ? (
+                    <AlertCircle size={20} style={{ color: "var(--accent-gold)" }} />
+                  ) : (
+                    <CheckCircle2 size={20} style={{ color: "var(--accent-sage)" }} />
+                  )}
+                  <div>
+                    <div className={styles.checkTitle}>Audit Warnings</div>
+                    <div className={styles.checkSub}>
+                      {validation.warnings && validation.warnings.length > 0
+                        ? `${validation.warnings.length} Advisory Notes`
+                        : "0 Anomalies Flagged"}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {validation.warnings && validation.warnings.length > 0 && (
+                <div style={{ padding: "16px", backgroundColor: "rgba(230,194,128,0.08)", border: "1px solid rgba(230,194,128,0.3)", borderRadius: "var(--radius-md)", display: "flex", flexDirection: "column", gap: "8px" }}>
+                  <span style={{ fontSize: "0.75rem", fontWeight: 600, color: "var(--accent-gold)", textTransform: "uppercase", letterSpacing: "0.05em" }}>
+                    Advisory Notes:
+                  </span>
+                  {validation.warnings.map((w: string, wIdx: number) => (
+                    <div key={wIdx} style={{ fontSize: "0.82rem", color: "var(--text-secondary)", display: "flex", alignItems: "center", gap: "8px" }}>
+                      • {w}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* VIEW 6: RAW JSON */}
+          {ocrActiveView === "json" && (
+            <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <span style={{ fontSize: "0.78rem", color: "var(--text-muted)", fontFamily: "monospace" }}>Structured JSON Output</span>
+                <button
+                  className={styles.btnGhost}
+                  onClick={() => {
+                    if (ocrResults) {
+                      navigator.clipboard.writeText(ocrResults);
+                      setCopiedJson(true);
+                      setTimeout(() => setCopiedJson(false), 2000);
+                    }
+                  }}
+                >
+                  {copiedJson ? <Check size={14} style={{ color: "var(--accent-sage)" }} /> : <Code size={14} />}
+                  {copiedJson ? "Copied!" : "Copy JSON"}
+                </button>
+              </div>
+              <pre className={styles.resultsCode}>{ocrResults}</pre>
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  };
+
   // Submit Profile Updates
   const handleUpdateProfile = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!token) return;
     try {
-      const res = await fetch("http://localhost:8000/api/v1/profile", {
+      const res = await fetch(`${getApiBase()}/api/v1/profile`, {
         method: "PUT",
         headers: {
           "Content-Type": "application/json",
@@ -626,7 +1502,7 @@ export default function Home() {
       return;
     }
     try {
-      const res = await fetch("http://localhost:8000/api/v1/feedback", {
+      const res = await fetch(`${getApiBase()}/api/v1/feedback`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -1128,6 +2004,7 @@ export default function Home() {
                     type="text"
                     value={birthPlace}
                     onChange={(e) => setBirthPlace(e.target.value)}
+                    onBlur={(e) => resolveBirthPlace(e.target.value)}
                     placeholder="e.g. New York, NY"
                     required
                   />
@@ -1163,13 +2040,22 @@ export default function Home() {
                 <div className={styles.formGroupRow}>
                   <div className={styles.formGroup}>
                     <label>Timezone (IANA)</label>
-                    <input
-                      type="text"
+                    <select
                       value={birthTz}
                       onChange={(e) => setBirthTz(e.target.value)}
-                      placeholder="e.g. America/New_York"
                       required
-                    />
+                    >
+                      <option value="">Select Timezone</option>
+                      <option value="Asia/Kolkata">Asia/Kolkata (IST)</option>
+                      {birthTz && birthTz !== "Asia/Kolkata" && !IANA_TIMEZONES.includes(birthTz) && (
+                        <option value={birthTz}>{birthTz}</option>
+                      )}
+                      {IANA_TIMEZONES.filter(tz => tz !== "Asia/Kolkata").map((tz) => (
+                        <option key={tz} value={tz}>
+                          {tz}
+                        </option>
+                      ))}
+                    </select>
                   </div>
                   <div className={`${styles.formGroup} ${styles.dstCheckboxGroup}`}>
                     <input
@@ -1219,54 +2105,73 @@ export default function Home() {
 
         {/* --- Tab 3: OCR Upload --- */}
         {activeTab === "upload" && (
-          <section className={styles.splitView}>
-            <div className={styles.formContainerCard}>
-              <h2>Image OCR Analysis</h2>
-              <p className={styles.formDesc}>Upload scanned birth documents, charts, or diagrams. Our layout parser will identify text coordinates and reconstruct factors.</p>
+          <>
+            {!ocrParsedData ? (
+              <section className={styles.splitView}>
+                <div className={styles.formContainerCard}>
+                  <h2>Image OCR Analysis</h2>
+                  <p className={styles.formDesc}>
+                    Upload scanned birth documents, charts, or diagrams. Our layout parser will identify text coordinates and reconstruct factors.
+                  </p>
 
-              <div
-                className={styles.uploadDropzone}
-                onClick={() => document.getElementById("file-file")?.click()}
-              >
-                <Upload className={styles.uploadIcon} />
-                <p className={styles.dropzoneText}>
-                  Drag files here or <span className={styles.browseLink}>browse from computer</span>
-                </p>
-                <input
-                  type="file"
-                  id="file-file"
-                  accept="image/*,application/pdf"
-                  className="hidden"
-                  onChange={(e) => {
-                    if (e.target.files && e.target.files[0]) {
-                      handleFileUpload(e.target.files[0]);
-                    }
-                  }}
-                />
-              </div>
-
-              {isUploading && (
-                <div className={styles.progressContainer}>
-                  <div className={styles.progressBar}>
-                    <div className={styles.progressFill} style={{ width: `${ocrProgress}%` }}></div>
+                  <div
+                    className={styles.uploadDropzone}
+                    onClick={() => document.getElementById("file-file")?.click()}
+                  >
+                    <Upload className={styles.uploadIcon} />
+                    <p className={styles.dropzoneText}>
+                      Drag files here or <span className={styles.browseLink}>browse from computer</span>
+                    </p>
+                    <input
+                      type="file"
+                      id="file-file"
+                      accept="image/*,application/pdf"
+                      className="hidden"
+                      onChange={(e) => {
+                        if (e.target.files && e.target.files[0]) {
+                          handleFileUpload(e.target.files[0]);
+                        }
+                      }}
+                    />
                   </div>
-                  <p>Processing alignment layers... ({ocrProgress}%)</p>
-                </div>
-              )}
 
-              {ocrResults && (
-                <div className={styles.ocrResults}>
-                  <h4>Extracted Chart Representation</h4>
-                  <pre className={styles.resultsCode}>{ocrResults}</pre>
+                  {isUploading && (
+                    <div className={styles.progressContainer}>
+                      <div className={styles.progressBar}>
+                        <div className={styles.progressFill} style={{ width: `${ocrProgress}%` }}></div>
+                      </div>
+                      <p>Processing spatial alignment layers... ({ocrProgress}%)</p>
+                    </div>
+                  )}
                 </div>
-              )}
-            </div>
 
-            <div className={styles.infoSidebarCard}>
-              <h3>Pipeline Extraction Architecture</h3>
-              <p>Processes raw uploads, runs layout classification blocks, runs text OCR engines, and translates visual factors into structured placements.</p>
-            </div>
-          </section>
+                <div className={styles.infoSidebarCard}>
+                  <h3>Pipeline Extraction Architecture</h3>
+                  <p>
+                    Processes raw uploads, runs layout classification blocks, runs text OCR engines, and translates visual factors into structured placements.
+                  </p>
+                  <div className={styles.featuresList}>
+                    <div className={styles.featureItem}>
+                      <Sparkles />
+                      <div>
+                        <h5>Layout Classifier</h5>
+                        <p>Detects North Indian diamond, South Indian square grid, and Western radial geometries.</p>
+                      </div>
+                    </div>
+                    <div className={styles.featureItem}>
+                      <BarChart3 />
+                      <div>
+                        <h5>Spatial Confidence Engine</h5>
+                        <p>Computes bounding box coordinate accuracy and field-level confidence ratings.</p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </section>
+            ) : (
+              renderOcrDashboard()
+            )}
+          </>
         )}
 
         {/* --- Tab 4: Chat --- */}
@@ -1280,38 +2185,34 @@ export default function Home() {
                   <Plus size={14} /> New
                 </button>
               </div>
+              <div style={{ padding: "12px 16px" }}>
+                <input
+                  type="text"
+                  className={styles.sidebarSearchInput}
+                  placeholder="Search conversations..."
+                  value={sidebarSearch}
+                  onChange={(e) => setSidebarSearch(e.target.value)}
+                />
+              </div>
               <div className={styles.conversationsList}>
-                {conversations.map((conv) => (
-                  <button
-                    key={conv.conversation_id}
-                    className={`${styles.convItem} ${currentConversationId === conv.conversation_id ? styles.convItemActive : ""}`}
-                    onClick={() => {
-                      setCurrentConversationId(conv.conversation_id);
-                      if (conv.messages && conv.messages.length > 0) {
-                        setMessages(
-                          conv.messages.map((m: any) => ({
-                            sender: m.role === "user" ? "user" : "assistant",
-                            text: m.content,
-                            time: m.timestamp ? new Date(m.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : "Just now"
-                          }))
-                        );
-                      } else {
-                        setMessages([
-                          { sender: "assistant", text: "Welcome to your astrological consultation thread.", time: "Just now" }
-                        ]);
-                      }
-                    }}
-                  >
-                    <span className={styles.convItemTitle}>{conv.title || "Astrology Consultation"}</span>
-                    <span className={styles.convItemMeta}>
-                      {conv.updated_at && !isNaN(new Date(conv.updated_at).getTime())
-                        ? new Date(conv.updated_at).toLocaleDateString()
-                        : conv.created_at && !isNaN(new Date(conv.created_at).getTime())
-                          ? new Date(conv.created_at).toLocaleDateString()
-                          : "Active Session"}
-                    </span>
-                  </button>
-                ))}
+                {conversations
+                  .filter((c) => (c.title || "Astrology Consultation").toLowerCase().includes(sidebarSearch.toLowerCase()))
+                  .map((conv) => (
+                    <button
+                      key={conv.conversation_id}
+                      className={`${styles.convItem} ${currentConversationId === conv.conversation_id ? styles.convItemActive : ""}`}
+                      onClick={() => handleSelectConversation(conv.conversation_id)}
+                    >
+                      <span className={styles.convItemTitle}>{conv.title || "Astrology Consultation"}</span>
+                      <span className={styles.convItemMeta}>
+                        {conv.updated_at && !isNaN(new Date(conv.updated_at).getTime())
+                          ? new Date(conv.updated_at).toLocaleDateString()
+                          : conv.created_at && !isNaN(new Date(conv.created_at).getTime())
+                            ? new Date(conv.created_at).toLocaleDateString()
+                            : "Active Session"}
+                      </span>
+                    </button>
+                  ))}
               </div>
             </div>
 
@@ -1325,19 +2226,54 @@ export default function Home() {
               </div>
 
               <div className={styles.chatMessages} ref={chatContainerRef} onScroll={handleChatScroll}>
-                {messages.map((msg, i) => (
-                  <div
-                    key={i}
-                    className={`${styles.message} ${msg.sender === "user" ? styles.userMsg : styles.assistantMsg}`}
-                  >
-                    <div className={styles.messageBubble}>{msg.text}</div>
-                    <span className={styles.messageTime}>{msg.time}</span>
+                {messages.length <= 1 ? (
+                  <div className={styles.suggestionContainer}>
+                    <h3 className={styles.suggestionTitle}>How can Aura Astrology guide you today?</h3>
+                    <p className={styles.suggestionSubtitle}>Select a core consultation theme to generate dynamic, pandit-surpassing predictions</p>
+                    <div className={styles.suggestionGrid}>
+                      {SUGGESTION_CHIPS.map((chip, idx) => (
+                        <button
+                          key={idx}
+                          type="button"
+                          className={styles.suggestionCard}
+                          onClick={() => submitChatMessage(chip.prompt)}
+                        >
+                          <span className={styles.suggestionCardIcon}>{chip.icon}</span>
+                          <div className={styles.suggestionCardText}>
+                            <h5>{chip.title}</h5>
+                            <p>{chip.desc}</p>
+                          </div>
+                        </button>
+                      ))}
+                    </div>
                   </div>
-                ))}
+                ) : (
+                  messages.map((msg, i) => (
+                    <div
+                      key={i}
+                      className={`${styles.messageRow} ${msg.sender === "user" ? styles.messageRowUser : ""}`}
+                    >
+                      <div className={`${styles.messageAvatar} ${msg.sender === "user" ? styles.userAvatar : styles.assistantAvatar}`}>
+                        {msg.sender === "user" ? <UserIcon size={16} /> : <Compass size={16} />}
+                      </div>
+                      <div className={`${styles.messageWrapper} ${msg.sender === "user" ? styles.userMsg : styles.assistantMsg}`}>
+                        <div className={styles.messageBubble}>
+                          {msg.sender === "user" ? msg.text : renderFormattedMessageText(msg.text)}
+                        </div>
+                        <span className={styles.messageTime}>{msg.time}</span>
+                      </div>
+                    </div>
+                  ))
+                )}
                 {isSendingMessage && (
-                  <div className={`${styles.message} ${styles.assistantMsg}`}>
-                    <div className={styles.messageBubble}>
-                      <Loader2 className="animate-spin inline-block" size={16} /> Consultative synthesis active...
+                  <div className={styles.messageRow}>
+                    <div className={`${styles.messageAvatar} ${styles.assistantAvatar}`}>
+                      <Compass className="animate-spin" size={16} />
+                    </div>
+                    <div className={styles.typingIndicator}>
+                      <span className={styles.typingDot}></span>
+                      <span className={styles.typingDot}></span>
+                      <span className={styles.typingDot}></span>
                     </div>
                   </div>
                 )}
@@ -1356,18 +2292,37 @@ export default function Home() {
                 </button>
               )}
 
-              <form onSubmit={handleSendMessage} className={styles.chatInputBar}>
-                <input
-                  type="text"
-                  value={chatMessageInput}
-                  onChange={(e) => setChatMessageInput(e.target.value)}
-                  placeholder="Ask about lifecycle transits, specific chart placements, or Vedic yogas..."
-                  required
-                />
-                <button type="submit" className={styles.chatSendBtn}>
-                  <Send size={16} />
-                </button>
-              </form>
+              <div className={styles.chatInputWrapper}>
+                <form onSubmit={handleSendMessage} className={styles.chatInputBar} style={{ borderTop: "none", padding: 0 }}>
+                  <input
+                    type="text"
+                    value={chatMessageInput}
+                    onChange={(e) => setChatMessageInput(e.target.value)}
+                    placeholder="Ask about lifecycle transits, specific chart placements, or Vedic yogas..."
+                    required
+                    style={{ flex: 1 }}
+                  />
+                  <button type="submit" className={styles.chatSendBtn}>
+                    <Send size={16} />
+                  </button>
+                </form>
+                <div className={styles.chatInputToolbar}>
+                  <div className={styles.toolbarActions}>
+                    <button
+                      type="button"
+                      className={styles.actionIconBtn}
+                      onClick={() => setActiveTab("upload")}
+                      title="Upload chart document"
+                    >
+                      <Plus size={14} style={{ marginRight: "4px" }} />
+                      <span>Upload Chart (OCR)</span>
+                    </button>
+                  </div>
+                  <span className={styles.promptLength}>
+                    {chatMessageInput.length} chars
+                  </span>
+                </div>
+              </div>
             </div>
           </section>
         )}

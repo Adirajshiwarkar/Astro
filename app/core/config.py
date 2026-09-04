@@ -53,5 +53,9 @@ class Settings(BaseSettings):
     # Logging Settings
     LOG_LEVEL: str = "INFO"
 
+    # Seeding Settings
+    SEED_EMBEDDINGS: bool = False
+
 
 settings = Settings()
+

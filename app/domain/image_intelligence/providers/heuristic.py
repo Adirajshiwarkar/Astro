@@ -179,7 +179,7 @@ class HeuristicVisionProvider(VisionProvider):
 
 
 class HeuristicOCRProvider(OCRProvider):
-    """Extracts text tokens and recognizes astrological entities using regex rules."""
+    """Extracts text tokens and recognizes astrological entities using pytesseract OCR and pattern recognition."""
 
     def __init__(self, fallback_text: str = "") -> None:
         self.fallback_text = fallback_text
@@ -188,40 +188,89 @@ class HeuristicOCRProvider(OCRProvider):
         self, image_bytes: bytes, dimensions: tuple[int, int]
     ) -> OCRResult:
         w, h = dimensions
+        if w <= 0 or h <= 0:
+            w, h = 800, 800
         tokens: list[OCRToken] = []
         full_text = self.fallback_text
 
-        # If image_bytes contains text directly (e.g. from tests or pre-parsed streams)
+        # 1. Try pytesseract OCR on image bytes
         if not full_text:
             try:
-                # Attempt decoding text if payload is text-based
-                full_text = image_bytes.decode("utf-8", errors="ignore").strip()
+                import pytesseract
+                from PIL import Image
+
+                img = Image.open(io.BytesIO(image_bytes)).convert("RGB")
+                w, h = img.width, img.height
+
+                ocr_data = pytesseract.image_to_data(img, output_type=pytesseract.Output.DICT)
+                lines_list: list[str] = []
+                current_line_tokens: list[str] = []
+                last_line_num = -1
+
+                for i in range(len(ocr_data['text'])):
+                    txt = str(ocr_data['text'][i]).strip()
+                    if txt:
+                        line_num = ocr_data['line_num'][i]
+                        if last_line_num != line_num and current_line_tokens:
+                            lines_list.append(" ".join(current_line_tokens))
+                            current_line_tokens = []
+                        last_line_num = line_num
+                        current_line_tokens.append(txt)
+
+                        conf = float(ocr_data['conf'][i]) / 100.0 if ocr_data.get('conf') and ocr_data['conf'][i] > 0 else 0.85
+                        tokens.append(
+                            OCRToken(
+                                text=txt,
+                                bbox=BoundingBox(
+                                    x=float(ocr_data['left'][i]),
+                                    y=float(ocr_data['top'][i]),
+                                    width=float(ocr_data['width'][i]),
+                                    height=float(ocr_data['height'][i]),
+                                ),
+                                confidence=conf,
+                                line_number=line_num,
+                            )
+                        )
+                if current_line_tokens:
+                    lines_list.append(" ".join(current_line_tokens))
+
+                full_text = "\n".join(lines_list)
             except Exception:
-                full_text = ""
+                pass
+
+        # 2. Fallback text decoding ONLY if payload is text/JSON (not binary JPEG/PNG/PDF)
+        if not full_text:
+            is_binary = image_bytes.startswith((b"\xff\xd8", b"\x89PNG", b"%PDF", b"RIFF", b"II*\x00", b"MM\x00*"))
+            if not is_binary:
+                try:
+                    full_text = image_bytes.decode("utf-8", errors="ignore").strip()
+                except Exception:
+                    full_text = ""
 
         lines = full_text.splitlines() if full_text else []
-        for line_idx, line in enumerate(lines):
-            words = line.split()
-            for word_idx, word in enumerate(words):
-                tokens.append(
-                    OCRToken(
-                        text=word,
-                        bbox=BoundingBox(
-                            x=(word_idx * 50) % (w or 800),
-                            y=(line_idx * 30) % (h or 800),
-                            width=45,
-                            height=20,
-                        ),
-                        confidence=0.90,
-                        line_number=line_idx + 1,
+        if not tokens and lines:
+            for line_idx, line in enumerate(lines):
+                words = line.split()
+                for word_idx, word in enumerate(words):
+                    tokens.append(
+                        OCRToken(
+                            text=word,
+                            bbox=BoundingBox(
+                                x=(word_idx * 50) % w,
+                                y=(line_idx * 30) % h,
+                                width=45,
+                                height=20,
+                            ),
+                            confidence=0.90,
+                            line_number=line_idx + 1,
+                        )
                     )
-                )
 
         return OCRResult(
             full_text=full_text,
             tokens=tokens,
             lines=lines,
             detected_language="en",
-            provider_name="heuristic_ocr",
+            provider_name="pytesseract_ocr",
             overall_confidence=0.85 if tokens else 0.50,
         )

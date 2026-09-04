@@ -14,6 +14,8 @@ class SignalDomain(str, Enum):
     RELOCATION = "relocation"
     FAMILY = "family"
     PERSONAL_DEVELOPMENT = "personal_development"
+    HEALTH = "health"
+
 
 
 class SignalType(str, Enum):

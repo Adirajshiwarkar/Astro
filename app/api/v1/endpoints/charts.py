@@ -21,9 +21,27 @@ from app.schemas.charts import (
 from app.schemas.image_intelligence import ChartUploadResponse
 from app.services.astrology.provider import SwissEphemerisProvider
 from app.services.astrology.timezone import local_to_utc
+from app.services.astrology.geocoder import geocode_location, resolve_timezone_name
 
 router = APIRouter()
 pipeline = ImageIntelligencePipeline()
+
+
+@router.get("/geocode")
+async def geocode_place(
+    q: str,
+    current_user: User = Depends(get_current_user),
+) -> dict[str, Any]:
+    """Geocode a place string to latitude, longitude and IANA timezone name."""
+    lat, lon = geocode_location(q)
+    tz = resolve_timezone_name(q)
+    return {
+        "latitude": lat,
+        "longitude": lon,
+        "timezone": tz,
+    }
+
+
 
 
 @router.post(

@@ -122,7 +122,8 @@ class NorthIndianChartParser(BaseChartParser):
             tok = p_item["token"]
             matched_house: int | None = None
 
-            if tok.bbox:
+            if tok.bbox and cell_map:
+                # 1. Exact box containment check
                 for h_idx, region in cell_map.items():
                     if (
                         region.bbox.x <= tok.bbox.x <= region.bbox.x + region.bbox.width
@@ -131,9 +132,22 @@ class NorthIndianChartParser(BaseChartParser):
                         matched_house = h_idx
                         break
 
+                # 2. Distance-based check to nearest house region center if exact bounding box missed
+                if matched_house is None:
+                    min_dist = float("inf")
+                    tok_cx = tok.bbox.x + (tok.bbox.width / 2.0)
+                    tok_cy = tok.bbox.y + (tok.bbox.height / 2.0)
+                    for h_idx, region in cell_map.items():
+                        reg_cx = region.bbox.x + (region.bbox.width / 2.0)
+                        reg_cy = region.bbox.y + (region.bbox.height / 2.0)
+                        dist = ((tok_cx - reg_cx) ** 2 + (tok_cy - reg_cy) ** 2) ** 0.5
+                        if dist < min_dist:
+                            min_dist = dist
+                            matched_house = h_idx
+
             if matched_house is None:
-                # Default fallback if spatial region not matched: place into House 1 or sequential
-                matched_house = 1
+                # Distribute sequential planets across open houses instead of clumping into House 1
+                matched_house = (len(planets) % 12) + 1
 
             if pname not in house_occupants[matched_house]:
                 house_occupants[matched_house].append(pname)
