@@ -1,3 +1,4 @@
+import math
 import re
 from typing import Any
 
@@ -45,50 +46,90 @@ class WesternCircularChartParser(BaseChartParser):
         chart_labels: list[ExtractedField[str]] = []
         metadata = self.extract_common_metadata(ocr_result)
 
-        # Parse tokens
+        w, h = image_info.dimensions
+        cx, cy = w / 2.0, h / 2.0
+
         for token in ocr_result.tokens:
             cleaned = token.text.strip().upper().rstrip(".,:;")
+            if not cleaned:
+                continue
+
+            matched_canonical = None
             if cleaned in PLANET_CANONICAL_MAP and cleaned not in ("ASC", "LAGNA", "LA", "AS"):
-                pname = PLANET_CANONICAL_MAP[cleaned]
-                deg_val, deg_dms = self.extract_degree(ocr_result.full_text)
+                matched_canonical = PLANET_CANONICAL_MAP[cleaned]
+            else:
+                for p_key, p_val in PLANET_CANONICAL_MAP.items():
+                    if p_key not in ("ASC", "LAGNA", "LA", "AS") and re.search(rf"\b{re.escape(p_key)}\b", cleaned):
+                        matched_canonical = p_val
+                        break
+
+            if matched_canonical:
+                # Calculate angle from wheel center if coordinates exist
+                estimated_house = 1
+                estimated_sign = 1
+                if token.bbox and w > 0 and h > 0:
+                    t_x = token.bbox.x + (token.bbox.width / 2.0)
+                    t_y = token.bbox.y + (token.bbox.height / 2.0)
+                    angle_deg = (math.degrees(math.atan2(t_y - cy, t_x - cx)) + 360) % 360
+                    estimated_house = int(angle_deg // 30) + 1
+                    estimated_sign = estimated_house
+                else:
+                    estimated_house = (len(planets) % 12) + 1
+                    estimated_sign = estimated_house
+
+                deg_val, deg_dms, nak_val, pada_val, is_rx, is_comb = self.find_nearby_attributes(
+                    token, ocr_result.tokens
+                )
+
+                sign_name = SIGN_NUMBER_TO_NAME.get(estimated_sign, "Aries")
 
                 planets.append(
                     ExtractedPlanetPlacement(
                         planet=ExtractedField(
-                            value=pname,
+                            value=matched_canonical,
                             confidence=token.confidence,
                             source_region=SourceRegion(bbox=token.bbox) if token.bbox else None,
                             extraction_method="western_wheel_ocr",
                         ),
                         sign=ExtractedField(
-                            value="Aries",
-                            confidence=0.85,
+                            value=sign_name,
+                            confidence=0.88,
                             extraction_method="wheel_sign_sector",
                         ),
                         sign_number=ExtractedField(
-                            value=1,
-                            confidence=0.85,
+                            value=estimated_sign,
+                            confidence=0.88,
                             extraction_method="wheel_sign_sector",
                         ),
                         house=ExtractedField(
-                            value=1,
-                            confidence=0.85,
+                            value=estimated_house,
+                            confidence=0.88,
                             extraction_method="wheel_cusp_radial_sector",
                         ),
                         degree=ExtractedField(
-                            value=deg_val if deg_val is not None else 15.0,
+                            value=deg_val,
                             confidence=0.85,
                             extraction_method="western_degree_label",
-                        ),
+                        ) if deg_val is not None else None,
                         degree_dms=ExtractedField(
-                            value=deg_dms if deg_dms is not None else "15°00'00\"",
+                            value=deg_dms,
                             confidence=0.85,
                             extraction_method="western_degree_label",
-                        ),
+                        ) if deg_dms is not None else None,
+                        is_retrograde=ExtractedField(
+                            value=is_rx,
+                            confidence=0.90,
+                            extraction_method="western_retro_flag",
+                        ) if is_rx else None,
                     )
                 )
 
-        # 12 Houses
+        # 12 Houses with occupants
+        house_occupants_map: dict[int, list[str]] = {h: [] for h in range(1, 13)}
+        for p in planets:
+            if p.house and p.house.value:
+                house_occupants_map[p.house.value].append(p.planet.value)
+
         for h_idx in range(1, 13):
             houses.append(
                 ExtractedHousePlacement(
@@ -112,6 +153,14 @@ class WesternCircularChartParser(BaseChartParser):
                         confidence=0.90,
                         extraction_method="western_cusp_spoke",
                     ),
+                    occupants=[
+                        ExtractedField(
+                            value=p_name,
+                            confidence=0.88,
+                            extraction_method="western_wheel_occupancy",
+                        )
+                        for p_name in house_occupants_map[h_idx]
+                    ],
                 )
             )
 

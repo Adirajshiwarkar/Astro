@@ -7,12 +7,13 @@ from app.domain.image_intelligence.providers.heuristic import (
     HeuristicOCRProvider,
     HeuristicVisionProvider,
 )
+from app.domain.image_intelligence.reasoning import ChartReasoningSynthesizer
 from app.domain.image_intelligence.security import SecureImageValidator
 from app.domain.image_intelligence.validator import ChartExtractionValidator
 
 
 class ImageIntelligencePipeline:
-    """End-to-end processing pipeline for Kundli and astrological chart images."""
+    """End-to-end processing and reasoning pipeline for Kundli and astrological chart images."""
 
     def __init__(
         self,
@@ -23,6 +24,7 @@ class ImageIntelligencePipeline:
         detector: ChartTypeDetector | None = None,
         parser: ChartParser | None = None,
         extraction_validator: ChartExtractionValidator | None = None,
+        reasoner: ChartReasoningSynthesizer | None = None,
     ) -> None:
         self.validator = validator or SecureImageValidator()
         self.preprocessor = preprocessor or ImagePreprocessor()
@@ -31,27 +33,29 @@ class ImageIntelligencePipeline:
         self.detector = detector or ChartTypeDetector()
         self.parser = parser or ChartParser()
         self.extraction_validator = extraction_validator or ChartExtractionValidator()
+        self.reasoner = reasoner or ChartReasoningSynthesizer()
 
     async def process_image(
         self, file_bytes: bytes, declared_mime: str | None = None
     ) -> StructuredChartRepresentation:
-        """Execute the full 8-stage image intelligence pipeline."""
+        """Execute the full 8-stage image intelligence and reasoning pipeline."""
         # 1. Secure File Validation
         sanitized_bytes, detected_mime, dimensions = self.validator.validate_and_sanitize(
             file_bytes, declared_mime
         )
 
-        # 2. Preprocessing
+        # 2. Preprocessing & Contrast Enhancement
         preprocessed = self.preprocessor.preprocess(sanitized_bytes)
+        enhanced_bytes = preprocessed.get_enhanced_bytes()
 
         # 3. Vision Layout Analysis
         vision_result = await self.vision_provider.analyze_layout(
-            sanitized_bytes, preprocessed.dimensions
+            enhanced_bytes, preprocessed.dimensions
         )
 
         # 4. OCR Extraction
         ocr_result = await self.ocr_provider.extract_text(
-            sanitized_bytes, preprocessed.dimensions
+            enhanced_bytes, preprocessed.dimensions
         )
 
         # 5. Chart-Type Detection
@@ -65,5 +69,10 @@ class ImageIntelligencePipeline:
         # 7. Astrological Consistency Validation
         validation_summary = self.extraction_validator.validate(chart_repr)
         chart_repr.validation_summary = validation_summary
+
+        # 8. Astrological Reasoning & Synthesis
+        reasoning_data = self.reasoner.synthesize(chart_repr)
+        chart_repr.reasoning = reasoning_data
+        chart_repr.insights = reasoning_data.get("insights", [])
 
         return chart_repr

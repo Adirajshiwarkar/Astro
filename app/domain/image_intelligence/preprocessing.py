@@ -20,6 +20,16 @@ class PreprocessedImage:
         self.dimensions = dimensions
         self.regions_of_interest = regions_of_interest or []
 
+    def get_enhanced_bytes(self) -> bytes:
+        buf = io.BytesIO()
+        self.enhanced_image.save(buf, format="PNG")
+        return buf.getvalue()
+
+    def get_binary_bytes(self) -> bytes:
+        buf = io.BytesIO()
+        self.binary_image.save(buf, format="PNG")
+        return buf.getvalue()
+
 
 class ImagePreprocessor:
     """Handles image normalization, contrast enhancement, binarization, and ROI segmentation."""

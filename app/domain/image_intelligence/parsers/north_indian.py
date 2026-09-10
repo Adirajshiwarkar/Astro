@@ -16,6 +16,7 @@ from app.domain.image_intelligence.parsers.base import (
     SIGN_NAME_TO_NUMBER,
     SIGN_NUMBER_TO_NAME,
     BaseChartParser,
+    map_point_to_north_indian_house,
 )
 from app.domain.image_intelligence.preprocessing import PreprocessedImage
 from app.domain.image_intelligence.providers.base import (
@@ -27,7 +28,7 @@ from app.domain.image_intelligence.providers.base import (
 
 
 class NorthIndianChartParser(BaseChartParser):
-    """Parses North Indian Diamond/Rhombus style Kundli charts."""
+    """Parses North Indian Diamond/Rhombus style Kundli charts with high-precision polygon localization."""
 
     def parse(
         self,
@@ -47,25 +48,28 @@ class NorthIndianChartParser(BaseChartParser):
         chart_labels: list[ExtractedField[str]] = []
         metadata = self.extract_common_metadata(ocr_result)
 
-        # 1. Map tokens to house regions or parse sequentially from OCR lines
+        img_w, img_h = image_info.dimensions
+        if img_w <= 0 or img_h <= 0:
+            img_w, img_h = 800, 800
+
+        # Determine chart bounding region in image pixels if localized, else full image
+        chart_xmin, chart_ymin = 0.0, 0.0
+        chart_w, chart_h = float(img_w), float(img_h)
+
+        # 1. Token decomposition and planet recognition
         house_occupants: dict[int, list[str]] = {h: [] for h in range(1, 13)}
         house_signs: dict[int, int] = {}
-        planet_tokens_found: list[dict[str, Any]] = []
+        detected_planets: list[dict[str, Any]] = []
 
-        # Find house cells from vision regions or text
-        cell_map: dict[int, LayoutRegion] = {}
-        for r in vision_result.regions:
-            if r.region_type == "house_cell" and isinstance(r.identifier, int) and 1 <= r.identifier <= 12:
-                cell_map[r.identifier] = r
-
-        # Map tokens from OCR into houses
         for token in ocr_result.tokens:
-            cleaned = token.text.strip().upper().rstrip(".,:;")
-            if not cleaned:
+            raw_text = token.text.strip()
+            if not raw_text:
                 continue
 
+            cleaned_upper = raw_text.upper().rstrip(".,:;")
+
             # Check for chart label
-            if cleaned in ("LAGNA", "KUNDLI", "RASHI", "D1", "NAVAMSHA", "D9", "CHALIT"):
+            if cleaned_upper in ("LAGNA", "KUNDLI", "RASHI", "D1", "NAVAMSHA", "D9", "CHALIT", "KUNDALI", "लग्न"):
                 chart_labels.append(
                     ExtractedField(
                         value=token.text,
@@ -75,89 +79,92 @@ class NorthIndianChartParser(BaseChartParser):
                     )
                 )
 
-            # Check if token is a planet name or abbreviation
-            if cleaned in PLANET_CANONICAL_MAP:
-                canonical = PLANET_CANONICAL_MAP[cleaned]
-                planet_tokens_found.append({
-                    "name": canonical,
-                    "token": token,
-                    "raw": token.text,
-                })
+            # Compute normalized coordinates (u, v) in [0, 1] x [0, 1]
+            if token.bbox:
+                tok_cx = token.bbox.x + (token.bbox.width / 2.0)
+                tok_cy = token.bbox.y + (token.bbox.height / 2.0)
+            else:
+                tok_cx = float(img_w / 2)
+                tok_cy = float(img_h / 2)
 
-            # Check if token is a single/double digit representing sign number (1..12)
-            if cleaned.isdigit():
-                num = int(cleaned)
-                if 1 <= num <= 12:
-                    # Assign sign number to nearest house region if bbox exists
-                    assigned = False
-                    if token.bbox:
-                        for h_idx, region in cell_map.items():
-                            if (
-                                region.bbox.x <= token.bbox.x <= region.bbox.x + region.bbox.width
-                                and region.bbox.y <= token.bbox.y <= region.bbox.y + region.bbox.height
-                            ):
-                                house_signs[h_idx] = num
-                                assigned = True
-                                break
-                    if not assigned and 1 not in house_signs:
-                        # Default first found sign number to House 1 if top region
-                        house_signs[1] = num
+            u = max(0.0, min(1.0, (tok_cx - chart_xmin) / chart_w))
+            v = max(0.0, min(1.0, (tok_cy - chart_ymin) / chart_h))
+            assigned_house = map_point_to_north_indian_house(u, v)
 
-        # If vision cell contained_tokens exist, parse each cell directly
+            # Check for sign numbers (digits 1 to 12) inside house cell
+            # Only match isolated digits that are not part of degrees or dates
+            if re.match(r"^([1-9]|1[0-2])$", cleaned_upper):
+                sign_num = int(cleaned_upper)
+                if assigned_house not in house_signs:
+                    house_signs[assigned_house] = sign_num
+
+            # Extract all candidate words from the token (handles conjuncted planets like "Ju Mo", "Su Me", "4 Sa(R)")
+            # Split by whitespace, slashes, hyphens, parentheses
+            words = re.findall(r"[A-Za-z\u0900-\u097F]+", raw_text)
+            for word in words:
+                w_upper = word.upper()
+                canonical_planet = None
+
+                # 1. Exact match in canonical dictionary
+                if w_upper in PLANET_CANONICAL_MAP:
+                    canonical_planet = PLANET_CANONICAL_MAP[w_upper]
+                elif word in PLANET_CANONICAL_MAP:
+                    canonical_planet = PLANET_CANONICAL_MAP[word]
+                else:
+                    # 2. Check substring prefixes (e.g. "Saturn", "Jup", "Merc")
+                    for p_key, p_val in PLANET_CANONICAL_MAP.items():
+                        if len(p_key) >= 2 and (w_upper == p_key or w_upper.startswith(p_key)):
+                            canonical_planet = p_val
+                            break
+
+                if canonical_planet and canonical_planet != "Ascendant":
+                    # Avoid duplicate planet detection in the exact same house
+                    already_found = any(
+                        p["name"] == canonical_planet and p["house"] == assigned_house
+                        for p in detected_planets
+                    )
+                    if not already_found:
+                        # Extract localized degree, nakshatra, and status flags
+                        deg_val, deg_dms, nak_val, pada_val, is_rx, is_comb = self.find_nearby_attributes(
+                            token, ocr_result.tokens
+                        )
+                        detected_planets.append({
+                            "name": canonical_planet,
+                            "house": assigned_house,
+                            "token": token,
+                            "deg_val": deg_val,
+                            "deg_dms": deg_dms,
+                            "nak_val": nak_val,
+                            "pada_val": pada_val,
+                            "is_rx": is_rx,
+                            "is_comb": is_comb,
+                        })
+
+        # 2. Propagate continuous zodiac signs across all 12 houses from any detected anchor sign
+        if house_signs:
+            # Pick first detected house sign as anchor (prefer House 1 if present)
+            anchor_h = 1 if 1 in house_signs else next(iter(house_signs.keys()))
+            anchor_sign = house_signs[anchor_h]
+            # Lagna Sign (House 1 sign)
+            lagna_sign_num = ((anchor_sign - 1 - (anchor_h - 1)) % 12) + 1
+        else:
+            lagna_sign_num = 1  # Default Aries Lagna if no sign numbers present
+
         for h_idx in range(1, 13):
-            reg = cell_map.get(h_idx)
-            if reg and reg.contained_tokens:
-                for ct in reg.contained_tokens:
-                    ct_clean = ct.strip().upper().rstrip(".,:;")
-                    if ct_clean.isdigit() and 1 <= int(ct_clean) <= 12:
-                        house_signs[h_idx] = int(ct_clean)
-                    elif ct_clean in PLANET_CANONICAL_MAP:
-                        pname = PLANET_CANONICAL_MAP[ct_clean]
-                        if pname not in house_occupants[h_idx]:
-                            house_occupants[h_idx].append(pname)
+            calculated_sign = ((lagna_sign_num - 1 + (h_idx - 1)) % 12) + 1
+            house_signs[h_idx] = calculated_sign
 
-        # Associate found planets to houses based on spatial containment
-        for p_item in planet_tokens_found:
-            pname = p_item["name"]
-            tok = p_item["token"]
-            matched_house: int | None = None
+        # 3. Build ExtractedPlanetPlacement records and synchronize occupants
+        for p_info in detected_planets:
+            pname = p_info["name"]
+            h_num = p_info["house"]
+            tok = p_info["token"]
 
-            if tok.bbox and cell_map:
-                # 1. Exact box containment check
-                for h_idx, region in cell_map.items():
-                    if (
-                        region.bbox.x <= tok.bbox.x <= region.bbox.x + region.bbox.width
-                        and region.bbox.y <= tok.bbox.y <= region.bbox.y + region.bbox.height
-                    ):
-                        matched_house = h_idx
-                        break
+            if pname not in house_occupants[h_num]:
+                house_occupants[h_num].append(pname)
 
-                # 2. Distance-based check to nearest house region center if exact bounding box missed
-                if matched_house is None:
-                    min_dist = float("inf")
-                    tok_cx = tok.bbox.x + (tok.bbox.width / 2.0)
-                    tok_cy = tok.bbox.y + (tok.bbox.height / 2.0)
-                    for h_idx, region in cell_map.items():
-                        reg_cx = region.bbox.x + (region.bbox.width / 2.0)
-                        reg_cy = region.bbox.y + (region.bbox.height / 2.0)
-                        dist = ((tok_cx - reg_cx) ** 2 + (tok_cy - reg_cy) ** 2) ** 0.5
-                        if dist < min_dist:
-                            min_dist = dist
-                            matched_house = h_idx
-
-            if matched_house is None:
-                # Distribute sequential planets across open houses instead of clumping into House 1
-                matched_house = (len(planets) % 12) + 1
-
-            if pname not in house_occupants[matched_house]:
-                house_occupants[matched_house].append(pname)
-
-            # Degree & Nakshatra parsing from subsequent tokens in full text
-            deg_val, deg_dms = self.extract_degree(ocr_result.full_text)
-            nak_val, pada_val = self.extract_nakshatra_pada(ocr_result.full_text)
-
-            sign_num = house_signs.get(matched_house)
-            sign_name = SIGN_NUMBER_TO_NAME.get(sign_num) if sign_num else None
+            sign_num = house_signs.get(h_num, 1)
+            sign_name = SIGN_NUMBER_TO_NAME.get(sign_num, "Aries")
 
             planets.append(
                 ExtractedPlanetPlacement(
@@ -165,55 +172,65 @@ class NorthIndianChartParser(BaseChartParser):
                         value=pname,
                         confidence=tok.confidence,
                         source_region=SourceRegion(bbox=tok.bbox) if tok.bbox else None,
-                        extraction_method="vision_ocr_alignment",
+                        extraction_method="polygon_spatial_containment",
                     ),
                     sign=ExtractedField(
                         value=sign_name,
-                        confidence=0.85,
-                        extraction_method="house_sign_derivation",
-                    ) if sign_name else None,
+                        confidence=0.92,
+                        extraction_method="north_indian_zodiac_continuity",
+                    ),
                     sign_number=ExtractedField(
                         value=sign_num,
-                        confidence=0.85,
-                        extraction_method="house_sign_derivation",
-                    ) if sign_num else None,
+                        confidence=0.92,
+                        extraction_method="north_indian_zodiac_continuity",
+                    ),
                     house=ExtractedField(
-                        value=matched_house,
-                        confidence=0.90,
-                        extraction_method="north_indian_diamond_grid",
+                        value=h_num,
+                        confidence=0.95,
+                        extraction_method="north_indian_polygon_grid",
                     ),
                     degree=ExtractedField(
-                        value=deg_val,
-                        confidence=0.80,
+                        value=p_info["deg_val"],
+                        confidence=0.88,
                         extraction_method="ocr_degree_extractor",
-                    ) if deg_val is not None else None,
+                    ) if p_info["deg_val"] is not None else None,
                     degree_dms=ExtractedField(
-                        value=deg_dms,
-                        confidence=0.80,
+                        value=p_info["deg_dms"],
+                        confidence=0.88,
                         extraction_method="ocr_degree_extractor",
-                    ) if deg_dms is not None else None,
+                    ) if p_info["deg_dms"] is not None else None,
                     nakshatra=ExtractedField(
-                        value=nak_val,
-                        confidence=0.85,
+                        value=p_info["nak_val"],
+                        confidence=0.88,
                         extraction_method="ocr_nakshatra_extractor",
-                    ) if nak_val else None,
+                    ) if p_info["nak_val"] else None,
                     pada=ExtractedField(
-                        value=pada_val,
-                        confidence=0.85,
+                        value=p_info["pada_val"],
+                        confidence=0.88,
                         extraction_method="ocr_pada_extractor",
-                    ) if pada_val is not None else None,
+                    ) if p_info["pada_val"] is not None else None,
+                    is_retrograde=ExtractedField(
+                        value=p_info["is_rx"],
+                        confidence=0.90,
+                        extraction_method="ocr_retro_flag",
+                    ) if p_info["is_rx"] else None,
+                    is_combust=ExtractedField(
+                        value=p_info["is_comb"],
+                        confidence=0.90,
+                        extraction_method="ocr_combust_flag",
+                    ) if p_info["is_comb"] else None,
                 )
             )
 
-        # Build 12 houses
+        # 4. Build 12 houses with calculated signs and synchronized occupants
         for h_idx in range(1, 13):
-            s_num = house_signs.get(h_idx)
-            s_name = SIGN_NUMBER_TO_NAME.get(s_num) if s_num else None
+            s_num = house_signs.get(h_idx, ((h_idx - 1) % 12) + 1)
+            s_name = SIGN_NUMBER_TO_NAME.get(s_num, "Aries")
             occs = [
                 ExtractedField(
                     value=p,
-                    confidence=0.90,
-                    extraction_method="north_indian_cell_parser",
+                    confidence=0.92,
+                    extraction_method="north_indian_polygon_parser",
                 )
                 for p in house_occupants.get(h_idx, [])
             ]
@@ -226,34 +243,58 @@ class NorthIndianChartParser(BaseChartParser):
                     ),
                     sign=ExtractedField(
                         value=s_name,
-                        confidence=0.85,
-                        extraction_method="north_indian_corner_number",
-                    ) if s_name else None,
+                        confidence=0.92,
+                        extraction_method="north_indian_zodiac_continuity",
+                    ),
                     sign_number=ExtractedField(
                         value=s_num,
-                        confidence=0.85,
-                        extraction_method="north_indian_corner_number",
-                    ) if s_num else None,
+                        confidence=0.92,
+                        extraction_method="north_indian_zodiac_continuity",
+                    ),
                     occupants=occs,
                 )
             )
 
-        # Ascendant from House 1
-        ascendant: ExtractedAscendant | None = None
-        h1_sign_num = house_signs.get(1)
-        h1_sign_name = SIGN_NUMBER_TO_NAME.get(h1_sign_num) if h1_sign_num else None
-        if h1_sign_name:
-            ascendant = ExtractedAscendant(
-                sign=ExtractedField(
-                    value=h1_sign_name,
-                    confidence=0.92,
-                    extraction_method="house_1_sign_mapping",
-                ),
-                sign_number=ExtractedField(
-                    value=h1_sign_num,
-                    confidence=0.92,
-                    extraction_method="house_1_sign_mapping",
-                ) if h1_sign_num else None,
-            )
+        # 5. Ascendant / Lagna from House 1
+        h1_sign_num = house_signs.get(1, 1)
+        h1_sign_name = SIGN_NUMBER_TO_NAME.get(h1_sign_num, "Aries")
+
+        lagna_deg = None
+        lagna_nak = None
+        lagna_pada = None
+        for p in planets:
+            if p.planet.value in ("Ascendant", "Lagna"):
+                lagna_deg = p.degree.value if p.degree else None
+                lagna_nak = p.nakshatra.value if p.nakshatra else None
+                lagna_pada = p.pada.value if p.pada else None
+                break
+
+        ascendant = ExtractedAscendant(
+            sign=ExtractedField(
+                value=h1_sign_name,
+                confidence=0.95,
+                extraction_method="house_1_sign_mapping",
+            ),
+            sign_number=ExtractedField(
+                value=h1_sign_num,
+                confidence=0.95,
+                extraction_method="house_1_sign_mapping",
+            ),
+            degree=ExtractedField(
+                value=lagna_deg,
+                confidence=0.88,
+                extraction_method="house_1_degree",
+            ) if lagna_deg is not None else None,
+            nakshatra=ExtractedField(
+                value=lagna_nak,
+                confidence=0.88,
+                extraction_method="house_1_nakshatra",
+            ) if lagna_nak else None,
+            pada=ExtractedField(
+                value=lagna_pada,
+                confidence=0.88,
+                extraction_method="house_1_pada",
+            ) if lagna_pada is not None else None,
+        )
 
         return ascendant, planets, houses, None, metadata, chart_labels

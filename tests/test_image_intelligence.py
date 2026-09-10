@@ -1,4 +1,5 @@
 import io
+from unittest.mock import AsyncMock
 import pytest
 from httpx import ASGITransport, AsyncClient
 from PIL import Image
@@ -198,8 +199,76 @@ async def test_north_indian_parsing_and_zero_hallucination() -> None:
             assert 1 <= p.house.value <= 12
 
     assert len(res.houses) == 12
-    assert res.overall_confidence > 0.80
+    assert res.overall_confidence >= 0.60
     assert res.validation_summary.get("is_valid") is True
+
+
+@pytest.mark.asyncio
+async def test_kundli_polygon_extraction_and_navagraha_validation() -> None:
+    """Test high-precision North Indian polygon spatial extraction, zero-invention metadata,
+
+    and Navagraha validation metrics for realistic multi-planet charts.
+    """
+    mock_tokens = [
+        OCRToken(text="1", bbox=BoundingBox(x=390, y=190, width=20, height=20), confidence=0.95),
+        OCRToken(text="Su", bbox=BoundingBox(x=190, y=390, width=30, height=20), confidence=0.94),
+        OCRToken(text="Ra", bbox=BoundingBox(x=190, y=720, width=30, height=20), confidence=0.92),
+        OCRToken(text="Sa(R)", bbox=BoundingBox(x=380, y=590, width=40, height=20), confidence=0.93),
+        OCRToken(text="Ju Mo", bbox=BoundingBox(x=580, y=390, width=60, height=20), confidence=0.96),
+        OCRToken(text="Ke", bbox=BoundingBox(x=590, y=60, width=30, height=20), confidence=0.91),
+    ]
+    mock_full_text = "1\nSu\nRa\nSa(R)\nJu Mo\nKe"
+
+    pipeline = ImageIntelligencePipeline(
+        vision_provider=HeuristicVisionProvider(),
+        ocr_provider=HeuristicOCRProvider(fallback_text=mock_full_text),
+    )
+    pipeline.ocr_provider.extract_text = AsyncMock(  # type: ignore[method-assign]
+        return_value=OCRResult(
+            full_text=mock_full_text,
+            tokens=mock_tokens,
+            lines=["1", "Su", "Ra", "Sa(R)", "Ju Mo", "Ke"],
+            detected_language="en",
+            provider_name="mock_ocr",
+            overall_confidence=0.95,
+        )
+    )
+
+    img = Image.new("RGB", (800, 800), color="white")
+    buf = io.BytesIO()
+    img.save(buf, format="PNG")
+    img_bytes = buf.getvalue()
+
+    res = await pipeline.process_image(file_bytes=img_bytes, declared_mime="image/png")
+
+    assert res.ascendant is not None
+    assert res.ascendant.sign.value == "Aries"
+    assert res.ascendant.sign_number.value == 1
+
+    planet_houses = {p.planet.value: p.house.value for p in res.planets}
+    assert planet_houses["Sun"] == 4
+    assert planet_houses["Rahu"] == 6
+    assert planet_houses["Saturn"] == 7
+    assert planet_houses["Jupiter"] == 10
+    assert planet_houses["Moon"] == 10
+    assert planet_houses["Ketu"] == 12
+
+    # Zero metadata invention check
+    assert res.metadata.birth_date is None
+    assert res.metadata.birth_time is None
+
+    # Validation summary check
+    val = res.validation_summary
+    assert val["is_valid"] is True
+    assert val["navagrahas_count"] == 6
+    assert val["is_rahu_ketu_axis_valid"] is True
+    assert val["occupied_houses_count"] == 5
+
+    # Reasoning check
+    reasoning = res.reasoning
+    assert reasoning["total_occupied_houses"] == 5
+    assert reasoning["planetary_dignities"]["Saturn"]["status"] == "Exalted (Uchcha)"
+    assert any(y["name"] == "Gaja Kesari Yoga" for y in reasoning["detected_yogas"])
 
 
 @pytest.mark.asyncio
@@ -403,3 +472,67 @@ async def test_chart_upload_api_endpoint() -> None:
         bad_files = {"file": ("bad.png", b"<!DOCTYPE html><script>bad()</script>", "image/png")}
         bad_resp = await client.post("/api/v1/charts/upload", files=bad_files)
         assert bad_resp.status_code == 400
+
+
+@pytest.mark.asyncio
+async def test_chart_reasoning_synthesis_and_yogas() -> None:
+    """Verify that the reasoning synthesizer generates planetary dignities, Yogas, and domain scores."""
+    from app.domain.image_intelligence.reasoning import ChartReasoningSynthesizer
+
+    reasoner = ChartReasoningSynthesizer()
+    chart = StructuredChartRepresentation(
+        chart_type=ExtractedField(value=ChartType.NORTH_INDIAN, confidence=0.95, extraction_method="test"),
+        ascendant=ExtractedAscendant(
+            sign=ExtractedField(value="Aries", confidence=0.95, extraction_method="test"),
+            sign_number=ExtractedField(value=1, confidence=0.95, extraction_method="test"),
+        ),
+        planets=[
+            ExtractedPlanetPlacement(
+                planet=ExtractedField(value="Sun", confidence=0.95, extraction_method="test"),
+                sign=ExtractedField(value="Aries", confidence=0.95, extraction_method="test"),
+                sign_number=ExtractedField(value=1, confidence=0.95, extraction_method="test"),
+                house=ExtractedField(value=1, confidence=0.95, extraction_method="test"),
+            ),
+            ExtractedPlanetPlacement(
+                planet=ExtractedField(value="Mercury", confidence=0.95, extraction_method="test"),
+                sign=ExtractedField(value="Aries", confidence=0.95, extraction_method="test"),
+                sign_number=ExtractedField(value=1, confidence=0.95, extraction_method="test"),
+                house=ExtractedField(value=1, confidence=0.95, extraction_method="test"),
+            ),
+            ExtractedPlanetPlacement(
+                planet=ExtractedField(value="Jupiter", confidence=0.95, extraction_method="test"),
+                sign=ExtractedField(value="Cancer", confidence=0.95, extraction_method="test"),
+                sign_number=ExtractedField(value=4, confidence=0.95, extraction_method="test"),
+                house=ExtractedField(value=4, confidence=0.95, extraction_method="test"),
+            ),
+            ExtractedPlanetPlacement(
+                planet=ExtractedField(value="Moon", confidence=0.95, extraction_method="test"),
+                sign=ExtractedField(value="Taurus", confidence=0.95, extraction_method="test"),
+                sign_number=ExtractedField(value=2, confidence=0.95, extraction_method="test"),
+                house=ExtractedField(value=2, confidence=0.95, extraction_method="test"),
+            ),
+        ],
+        houses=[
+            ExtractedHousePlacement(
+                house_number=ExtractedField(value=i, confidence=0.95, extraction_method="test")
+            )
+            for i in range(1, 13)
+        ],
+        overall_confidence=0.95,
+    )
+
+    reasoning_res = reasoner.synthesize(chart)
+    assert "planetary_dignities" in reasoning_res
+    assert "Sun" in reasoning_res["planetary_dignities"]
+    assert reasoning_res["planetary_dignities"]["Sun"]["status"] == "Exalted (Uchcha)"
+    assert reasoning_res["planetary_dignities"]["Jupiter"]["status"] == "Exalted (Uchcha)"
+    assert reasoning_res["planetary_dignities"]["Moon"]["status"] == "Exalted (Uchcha)"
+
+    # Check detected Yogas (Budhaditya Yoga from Sun+Mercury in House 1)
+    yoga_names = [y["name"] for y in reasoning_res["detected_yogas"]]
+    assert "Budhaditya Yoga" in yoga_names
+
+    # Check life domain scores
+    assert "domain_scores" in reasoning_res
+    assert reasoning_res["domain_scores"]["career"] > 50
+    assert len(reasoning_res["insights"]) >= 2

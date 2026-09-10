@@ -42,6 +42,7 @@ from app.domain.image_intelligence.providers.mock import (
     MockOCRProvider,
     MockVisionProvider,
 )
+from app.domain.image_intelligence.reasoning import ChartReasoningSynthesizer
 from app.domain.image_intelligence.security import (
     FileValidationError,
     SecureImageValidator,
@@ -83,5 +84,6 @@ __all__ = [
     "WesternCircularChartParser",
     "TableReportParser",
     "ChartExtractionValidator",
+    "ChartReasoningSynthesizer",
     "ImageIntelligencePipeline",
 ]

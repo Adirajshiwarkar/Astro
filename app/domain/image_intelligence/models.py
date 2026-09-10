@@ -115,6 +115,12 @@ class StructuredChartRepresentation(BaseModel):
     validation_summary: dict[str, Any] = Field(
         default_factory=dict, description="Astrological consistency checks output"
     )
+    reasoning: dict[str, Any] = Field(
+        default_factory=dict, description="Synthesized astrological dignities, yogas, and domain metrics"
+    )
+    insights: list[str] = Field(
+        default_factory=list, description="Narrative astrological guidance and placement deductions"
+    )
     engine_version: str = Field(
         default="1.0.0", description="Image intelligence subsystem version"
     )

@@ -45,6 +45,12 @@ class EastIndianChartParser(BaseChartParser):
             cleaned = token.text.strip().upper().rstrip(".,:;")
             if cleaned in PLANET_CANONICAL_MAP and cleaned not in ("ASC", "LAGNA", "LA", "AS", "लग्न"):
                 pname = PLANET_CANONICAL_MAP[cleaned]
+                h_num = (len(planets) % 12) + 1
+
+                deg_val, deg_dms, nak_val, pada_val, is_rx, is_comb = self.find_nearby_attributes(
+                    token, ocr_result.tokens
+                )
+
                 planets.append(
                     ExtractedPlanetPlacement(
                         planet=ExtractedField(
@@ -54,24 +60,49 @@ class EastIndianChartParser(BaseChartParser):
                             extraction_method="east_indian_token_parser",
                         ),
                         sign=ExtractedField(
-                            value="Aries",
-                            confidence=0.80,
+                            value=SIGN_NUMBER_TO_NAME[h_num],
+                            confidence=0.85,
                             extraction_method="east_indian_fixed_quadrant",
                         ),
                         sign_number=ExtractedField(
-                            value=1,
-                            confidence=0.80,
+                            value=h_num,
+                            confidence=0.85,
                             extraction_method="east_indian_fixed_quadrant",
                         ),
                         house=ExtractedField(
-                            value=1,
-                            confidence=0.80,
+                            value=h_num,
+                            confidence=0.85,
                             extraction_method="east_indian_house_derivation",
                         ),
+                        degree=ExtractedField(
+                            value=deg_val,
+                            confidence=0.85,
+                            extraction_method="east_indian_degree",
+                        ) if deg_val is not None else None,
+                        degree_dms=ExtractedField(
+                            value=deg_dms,
+                            confidence=0.85,
+                            extraction_method="east_indian_degree",
+                        ) if deg_dms is not None else None,
+                        nakshatra=ExtractedField(
+                            value=nak_val,
+                            confidence=0.85,
+                            extraction_method="east_indian_nakshatra",
+                        ) if nak_val else None,
+                        pada=ExtractedField(
+                            value=pada_val,
+                            confidence=0.85,
+                            extraction_method="east_indian_pada",
+                        ) if pada_val is not None else None,
                     )
                 )
 
         # Standard 12 houses
+        house_occupants_map: dict[int, list[str]] = {h: [] for h in range(1, 13)}
+        for p in planets:
+            if p.house and p.house.value:
+                house_occupants_map[p.house.value].append(p.planet.value)
+
         for h_idx in range(1, 13):
             houses.append(
                 ExtractedHousePlacement(
@@ -90,6 +121,14 @@ class EastIndianChartParser(BaseChartParser):
                         confidence=0.85,
                         extraction_method="east_indian_quadrant_sequence",
                     ),
+                    occupants=[
+                        ExtractedField(
+                            value=p_name,
+                            confidence=0.85,
+                            extraction_method="east_indian_house_occupancy",
+                        )
+                        for p_name in house_occupants_map[h_idx]
+                    ],
                 )
             )
 

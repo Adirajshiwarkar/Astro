@@ -21,10 +21,15 @@ VALID_SIGNS = {
 }
 
 
-class ChartExtractionValidator:
-    """Validates extracted astrological chart representations for astronomical consistency
+NAVAGRAHAS = {
+    "Sun", "Moon", "Mars", "Mercury", "Jupiter", "Venus", "Saturn", "Rahu", "Ketu"
+}
 
-    and anomalies without hallucinating missing data.
+
+class ChartExtractionValidator:
+    """Validates extracted astrological chart representations for astronomical consistency,
+
+    Navagraha completeness, nodal axis symmetry, and anomalies without hallucinating missing data.
     """
 
     def validate(self, chart: StructuredChartRepresentation) -> dict[str, Any]:
@@ -42,8 +47,12 @@ class ChartExtractionValidator:
 
         # 2. Check Planets
         seen_planets: set[str] = set()
+        planets_by_name: dict[str, ExtractedPlanetPlacement] = {}
+
         for p in chart.planets:
             pname = p.planet.value
+            planets_by_name[pname] = p
+
             if pname in seen_planets:
                 warnings.append(f"Duplicate planet placement detected for {pname}.")
             seen_planets.add(pname)
@@ -78,14 +87,66 @@ class ChartExtractionValidator:
             if h.cusp_degree and not (0.0 <= h.cusp_degree.value < 360.0):
                 errors.append(f"House cusp degree {h.cusp_degree.value} out of range [0.0, 360.0).")
 
+        # 4. Navagrahas Completeness
+        found_navagrahas = [p for p in seen_planets if p in NAVAGRAHAS]
+        navagrahas_count = len(found_navagrahas)
+        completeness_score = round((navagrahas_count / 9.0) * 100)
+
+        missing_navagrahas = list(NAVAGRAHAS - set(found_navagrahas))
+        if missing_navagrahas:
+            warnings.append(f"Missing classical planets in extraction: {', '.join(sorted(missing_navagrahas))}.")
+
+        # 5. Astronomical Rahu-Ketu 180° Opposite Axis Check
+        is_rahu_ketu_axis_valid = None
+        if "Rahu" in planets_by_name and "Ketu" in planets_by_name:
+            rahu_h = planets_by_name["Rahu"].house.value if planets_by_name["Rahu"].house else None
+            ketu_h = planets_by_name["Ketu"].house.value if planets_by_name["Ketu"].house else None
+            if rahu_h and ketu_h:
+                diff = abs(rahu_h - ketu_h)
+                is_rahu_ketu_axis_valid = (diff == 6)
+                if not is_rahu_ketu_axis_valid:
+                    warnings.append(
+                        f"Astronomical Node Anomaly: Rahu (House {rahu_h}) and Ketu (House {ketu_h}) "
+                        f"are not in the classical 7-house 180° opposite axis."
+                    )
+
         is_valid = len(errors) == 0
+
+        # 6. Realistic Status Label and Confidence Adjustment
+        if is_valid:
+            if completeness_score >= 85 and is_rahu_ketu_axis_valid is not False:
+                status_label = "Astrologically Validated"
+            elif completeness_score >= 40:
+                status_label = f"Partial Extraction ({navagrahas_count}/9 Navagrahas)"
+            else:
+                status_label = f"Incomplete Extraction ({navagrahas_count}/9 Navagrahas)"
+        else:
+            status_label = "Validation Anomalies Detected"
+
+        occupied_houses_count = len([h for h in chart.houses if h.occupants])
+
+        # Adjust overall chart confidence based on completeness and errors
+        calc_confidence = min(0.98, max(0.35, (
+            (completeness_score * 0.5) +
+            (45.0 if is_valid else 10.0) +
+            (5.0 if is_rahu_ketu_axis_valid else 0.0)
+        ) / 100.0))
+
+        chart.overall_confidence = round(calc_confidence, 2)
 
         return {
             "is_valid": is_valid,
             "errors": errors,
             "warnings": warnings,
+            "status_label": status_label,
+            "navagrahas_count": navagrahas_count,
+            "navagrahas_total": 9,
+            "completeness_score": completeness_score,
+            "missing_navagrahas": sorted(missing_navagrahas),
+            "is_rahu_ketu_axis_valid": is_rahu_ketu_axis_valid,
             "total_planets_extracted": len(chart.planets),
             "total_houses_extracted": len(chart.houses),
+            "occupied_houses_count": occupied_houses_count,
             "has_ascendant": chart.ascendant is not None,
             "has_dasha": chart.dasha is not None,
         }

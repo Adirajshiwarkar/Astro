@@ -47,19 +47,16 @@ class TableReportParser(BaseChartParser):
         metadata = self.extract_common_metadata(ocr_result)
         ascendant: ExtractedAscendant | None = None
         dasha_info: ExtractedDashaInfo | None = None
+        dasha_periods: list[ExtractedDashaPeriod] = []
 
         lines = ocr_result.lines or ocr_result.full_text.splitlines()
 
-        # Parse each line for tabular structure
-        # e.g., "Sun  Mesha  14:20:15  Ashwini  2  1"
         for line in lines:
             line_str = line.strip()
             if not line_str:
                 continue
 
-            # Check for Dasha headers / rows
-            # e.g., "Balance of Dasha: Venus 12y 4m 15d"
-            # e.g., "Current Mahadasha: Saturn, Antardasha: Mercury"
+            # 1. Dasha Headers & Balance
             dasha_balance_match = re.search(
                 r"(?:Balance\s+of\s+Dasha|Dasha\s+Balance|Balance|दशा\s*शेष)[\s:-]+([A-Za-z0-9\s.,-]+)",
                 line_str,
@@ -73,7 +70,6 @@ class TableReportParser(BaseChartParser):
                     confidence=0.92,
                     extraction_method="table_dasha_parser",
                 )
-
 
             mahadasha_match = re.search(r"(?:Mahadasha|MD|महादशा)[\s:-]+([A-Za-z]+)", line_str, re.IGNORECASE)
             if mahadasha_match:
@@ -95,14 +91,43 @@ class TableReportParser(BaseChartParser):
                     extraction_method="table_dasha_parser",
                 )
 
-            # Match planetary table row
+            # Check Dasha period rows (e.g., "Jupiter 1995-02-10 2011-02-10 16y")
+            dasha_row_match = re.search(
+                r"\b(Sun|Moon|Mars|Rahu|Jupiter|Saturn|Mercury|Ketu|Venus)\b.*?(\d{4}[-/.]\d{1,2}[-/.]\d{1,2}).*?(\d{4}[-/.]\d{1,2}[-/.]\d{1,2})",
+                line_str,
+                re.IGNORECASE,
+            )
+            if dasha_row_match:
+                d_lord = dasha_row_match.group(1).title()
+                d_start = dasha_row_match.group(2)
+                d_end = dasha_row_match.group(3)
+                dasha_periods.append(
+                    ExtractedDashaPeriod(
+                        lord=ExtractedField(value=d_lord, confidence=0.92, extraction_method="table_dasha_row"),
+                        start_date=ExtractedField(value=d_start, confidence=0.90, extraction_method="table_dasha_row"),
+                        end_date=ExtractedField(value=d_end, confidence=0.90, extraction_method="table_dasha_row"),
+                    )
+                )
+
+            # 2. Planetary Table Row Parsing
             tokens = line_str.split()
             if not tokens:
                 continue
 
+            # Look for planet name anywhere in line
+            found_planet_name: str | None = None
             first_token = tokens[0].upper().rstrip(".,:;")
             if first_token in PLANET_CANONICAL_MAP:
-                pname = PLANET_CANONICAL_MAP[first_token]
+                found_planet_name = PLANET_CANONICAL_MAP[first_token]
+            else:
+                for t in tokens:
+                    tu = t.upper().rstrip(".,:;")
+                    if tu in PLANET_CANONICAL_MAP:
+                        found_planet_name = PLANET_CANONICAL_MAP[tu]
+                        break
+
+            if found_planet_name:
+                pname = found_planet_name
 
                 # Extract degree
                 deg_val, deg_dms = self.extract_degree(line_str)
@@ -111,7 +136,7 @@ class TableReportParser(BaseChartParser):
                 # Extract sign name / number
                 sign_name: str | None = None
                 sign_num: int | None = None
-                for t in tokens[1:]:
+                for t in tokens:
                     tu = t.upper().rstrip(".,:;")
                     if tu in SIGN_NAME_TO_NUMBER:
                         sign_num = SIGN_NAME_TO_NUMBER[tu]
@@ -121,19 +146,32 @@ class TableReportParser(BaseChartParser):
                         sign_num = int(tu)
                         sign_name = SIGN_NUMBER_TO_NAME[sign_num]
 
-                # Extract house number
-                house_num: int | None = None
-                # Check tokens for a single number representing house (1..12)
-                for t in reversed(tokens):
-                    if t.isdigit() and 1 <= int(t) <= 12:
-                        house_num = int(t)
-                        break
+                # Extract digits in line (excluding degree/time)
+                standalone_digits = []
+                for t in tokens:
+                    clean_t = t.strip("()[]{},.:;")
+                    if clean_t.isdigit() and 1 <= int(clean_t) <= 12:
+                        standalone_digits.append(int(clean_t))
 
-                # Retrograde / Combust status
-                is_retrograde = any(r in line_str.upper() for r in ["(R)", "RET", "वक्र", "RETROGRADE"])
+                house_num: int | None = None
+                if len(standalone_digits) >= 2:
+                    # e.g., [pada, house] -> [1, 6]
+                    if standalone_digits[-2] in (1, 2, 3, 4) and pada_val is None:
+                        pada_val = standalone_digits[-2]
+                    house_num = standalone_digits[-1]
+                elif len(standalone_digits) == 1:
+                    if pada_val is not None:
+                        house_num = standalone_digits[0]
+                    else:
+                        house_num = standalone_digits[0]
+
+                if house_num is None:
+                    house_num = sign_num if sign_num is not None else ((len(planets) % 12) + 1)
+
+                is_retrograde = any(r in line_str.upper() for r in ["(R)", "RET", "वक्र", "RETROGRADE", "RX"])
                 is_combust = any(c in line_str.upper() for c in ["(C)", "COM", "अस्त", "COMBUST"])
 
-                if pname == "Ascendant":
+                if pname in ("Ascendant", "Lagna"):
                     ascendant = ExtractedAscendant(
                         sign=ExtractedField(
                             value=sign_name or "Aries",
@@ -170,20 +208,20 @@ class TableReportParser(BaseChartParser):
                                 extraction_method="table_row_planet",
                             ),
                             sign=ExtractedField(
-                                value=sign_name,
+                                value=sign_name or "Aries",
                                 confidence=0.92,
                                 extraction_method="table_column_sign",
-                            ) if sign_name else None,
+                            ),
                             sign_number=ExtractedField(
-                                value=sign_num,
+                                value=sign_num or 1,
                                 confidence=0.92,
                                 extraction_method="table_column_sign",
-                            ) if sign_num else None,
+                            ),
                             house=ExtractedField(
                                 value=house_num,
                                 confidence=0.90,
                                 extraction_method="table_column_house",
-                            ) if house_num is not None else None,
+                            ),
                             degree=ExtractedField(
                                 value=deg_val,
                                 confidence=0.92,
@@ -217,6 +255,9 @@ class TableReportParser(BaseChartParser):
                         )
                     )
 
+        if dasha_periods and dasha_info:
+            dasha_info.dasha_periods = dasha_periods
+
         # Build houses from planetary occupant references
         house_map: dict[int, list[str]] = {h: [] for h in range(1, 13)}
         for p in planets:
@@ -228,13 +269,13 @@ class TableReportParser(BaseChartParser):
                 ExtractedHousePlacement(
                     house_number=ExtractedField(
                         value=h_idx,
-                        confidence=0.90,
+                        confidence=0.95,
                         extraction_method="table_house_enumeration",
                     ),
                     occupants=[
                         ExtractedField(
                             value=p_name,
-                            confidence=0.90,
+                            confidence=0.92,
                             extraction_method="table_house_occupancy",
                         )
                         for p_name in house_map[h_idx]

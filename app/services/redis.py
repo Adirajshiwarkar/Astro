@@ -20,3 +20,7 @@ class RedisServiceStub:
 
 
 redis_service = RedisServiceStub()
+
+
+async def get_redis() -> RedisServiceStub:
+    return redis_service

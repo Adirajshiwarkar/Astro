@@ -302,7 +302,7 @@ export default function Home() {
   const [isUploading, setIsUploading] = useState(false);
   const [ocrResults, setOcrResults] = useState<string | null>(null);
   const [ocrParsedData, setOcrParsedData] = useState<any | null>(null);
-  const [ocrActiveView, setOcrActiveView] = useState<"visual" | "planets" | "houses" | "dasha" | "validation" | "json">("visual");
+  const [ocrActiveView, setOcrActiveView] = useState<"visual" | "planets" | "houses" | "reasoning" | "dasha" | "validation" | "json">("visual");
   const [ocrPlanetSearch, setOcrPlanetSearch] = useState("");
   const [copiedJson, setCopiedJson] = useState(false);
 
@@ -949,10 +949,15 @@ export default function Home() {
     const chartType = safeVal(ocrParsedData.chart_type, "astrological");
     const ascSign = safeVal(ocrParsedData.ascendant?.sign, "Unknown");
     const planetList = Array.isArray(ocrParsedData.planets)
-      ? ocrParsedData.planets.map((p: any) => `${safeVal(p.planet, "")} in ${safeVal(p.sign, "")} (House ${safeVal(p.house, "")})`).join(", ")
+      ? ocrParsedData.planets.map((p: any) => `${safeVal(p.planet, "")} in ${safeVal(p.sign, "")} (House ${safeVal(p.house, "")}${p.degree_dms?.value ? `, ${p.degree_dms.value}` : ""})`).join(", ")
       : "Standard placements";
 
-    const prompt = `I uploaded an astrological chart image (${chartType} style). The parser extracted the following placement details:\n- Lagna / Ascendant: ${ascSign}\n- Placements: ${planetList}\nCan you give me an in-depth astrological consultation analyzing my key combinations, strengths, and life guidance?`;
+    const yogas = ocrParsedData.reasoning?.detected_yogas || [];
+    const yogaSummary = yogas.length > 0
+      ? `\n- Active Yogas Detected: ${yogas.map((y: any) => `${y.name} (${y.category})`).join("; ")}`
+      : "";
+
+    const prompt = `I uploaded an astrological chart image (${chartType} style). The spatial parser extracted the following placement details:\n- Lagna / Ascendant: ${ascSign}\n- Placements: ${planetList}${yogaSummary}\nCan you give me an in-depth astrological consultation analyzing my key combinations, active Yogas, life domain strengths, and strategic guidance?`;
 
     setActiveTab("chat");
     submitChatMessage(prompt);
@@ -1023,9 +1028,9 @@ export default function Home() {
               <Compass size={14} />
               {chartTypeLabel}
             </div>
-            <div className={styles.ocrBadge}>
-              <CheckCircle2 size={14} style={{ color: "var(--accent-sage)" }} />
-              {validation.is_valid !== false ? "Astrologically Validated" : "Validation Warnings"}
+            <div className={`${styles.ocrBadge} ${validation.is_valid && (validation.completeness_score ?? 100) >= 80 ? styles.ocrBadgeHigh : styles.ocrBadgeMed}`}>
+              <CheckCircle2 size={14} style={{ color: validation.is_valid && (validation.completeness_score ?? 100) >= 80 ? "var(--accent-sage)" : "var(--accent-gold)" }} />
+              {validation.status_label || (validation.is_valid !== false ? "Astrologically Validated" : "Validation Warnings")}
             </div>
           </div>
 
@@ -1046,19 +1051,21 @@ export default function Home() {
         <div className={styles.ocrMetaGrid}>
           <div className={styles.ocrMetaItem}>
             <span className={styles.ocrMetaLabel}>Native Profile</span>
-            <span className={styles.ocrMetaVal}>{safeVal(metadata.native_name, "Extracted Chart")}</span>
-            <span className={styles.ocrMetaSub}>Document Title: {safeVal(metadata.chart_title, "Kundli Chart")}</span>
+            <span className={styles.ocrMetaVal}>{safeVal(metadata.native_name, "Extracted Native Profile")}</span>
+            <span className={styles.ocrMetaSub}>Document Title: {safeVal(metadata.chart_title, "Kundli Chart Image")}</span>
           </div>
           <div className={styles.ocrMetaItem}>
             <span className={styles.ocrMetaLabel}>Date & Time of Birth</span>
             <span className={styles.ocrMetaVal}>
               <Calendar size={14} style={{ color: "var(--accent-gold)" }} />
-              {safeVal(metadata.birth_date, "1990-01-01")} @ {safeVal(metadata.birth_time, "12:00")}
+              {metadata.birth_date?.value
+                ? `${metadata.birth_date.value}${metadata.birth_time?.value ? ` @ ${metadata.birth_time.value}` : ""}`
+                : "Not specified in image"}
             </span>
           </div>
           <div className={styles.ocrMetaItem}>
             <span className={styles.ocrMetaLabel}>Birth Place & Coords</span>
-            <span className={styles.ocrMetaVal}>{safeVal(metadata.birth_place, "Not specified")}</span>
+            <span className={styles.ocrMetaVal}>{safeVal(metadata.birth_place, "Not specified in image")}</span>
             <span className={styles.ocrMetaSub}>TZ: {safeVal(metadata.timezone, "UTC")}</span>
           </div>
           <div className={styles.ocrMetaItem}>
@@ -1098,6 +1105,12 @@ export default function Home() {
             onClick={() => setOcrActiveView("houses")}
           >
             <Layers size={15} /> 12 Houses Breakdown
+          </button>
+          <button
+            className={`${styles.ocrTabBtn} ${ocrActiveView === "reasoning" ? styles.ocrTabBtnActive : ""}`}
+            onClick={() => setOcrActiveView("reasoning")}
+          >
+            <Sparkles size={15} /> Astrological Reasoning & Yogas
           </button>
           <button
             className={`${styles.ocrTabBtn} ${ocrActiveView === "dasha" ? styles.ocrTabBtnActive : ""}`}
@@ -1141,7 +1154,7 @@ export default function Home() {
                     ✨ Total Planets: {planets.length}
                   </span>
                   <span className={styles.ocrBadge}>
-                    🏠 Occupied Houses: {houses.filter((h: any) => h.occupants && h.occupants.length > 0).length}/12
+                    🏠 Occupied Houses: {houses.filter((h: any) => Array.isArray(h.occupants) && h.occupants.length > 0).length || new Set(planets.map((p: any) => safeNum(p.house, 0)).filter((h: number) => h > 0)).size}/12
                   </span>
                   <span className={styles.ocrBadge}>
                     🔄 Retrogrades: {planets.filter((p: any) => Boolean(safeVal(p.is_retrograde, "false") === "true")).length}
@@ -1379,6 +1392,161 @@ export default function Home() {
             </div>
           )}
 
+          {/* VIEW: ASTROLOGICAL REASONING & YOGAS */}
+          {ocrActiveView === "reasoning" && (
+            <div className={styles.reasoningContainer}>
+              {/* Life Domain Alignments */}
+              <div className={styles.reasoningSectionHeader}>
+                <h4>
+                  <TrendingUp size={18} /> Life Domain Energy Alignments
+                </h4>
+                <span style={{ fontSize: "0.8rem", color: "var(--text-muted)" }}>
+                  Computed from planetary house occupancies & aspects
+                </span>
+              </div>
+
+              <div className={styles.domainScoresGrid}>
+                {[
+                  { key: "career", label: "Career & Leadership", icon: "💼" },
+                  { key: "finance", label: "Wealth & Finance", icon: "📈" },
+                  { key: "relationships", label: "Relationships & Love", icon: "❤️" },
+                  { key: "health", label: "Vitality & Wellness", icon: "🌿" },
+                  { key: "spirituality", label: "Spiritual Wisdom", icon: "🔮" }
+                ].map((dom) => {
+                  const score = ocrParsedData.reasoning?.domain_scores?.[dom.key] ?? 75;
+                  return (
+                    <div key={dom.key} className={styles.domainScoreCard}>
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                        <span className={styles.domainScoreLabel}>{dom.label}</span>
+                        <span style={{ fontSize: "1.1rem" }}>{dom.icon}</span>
+                      </div>
+                      <div className={styles.domainScoreValueRow}>
+                        <span className={styles.domainScoreNumber}>{score}%</span>
+                        <span style={{ fontSize: "0.75rem", color: score >= 80 ? "var(--accent-sage)" : "var(--accent-gold)" }}>
+                          {score >= 80 ? "Strong Alignment" : score >= 65 ? "Favorable" : "Moderate"}
+                        </span>
+                      </div>
+                      <div className={styles.confBarTrack}>
+                        <div
+                          className={styles.confBarFill}
+                          style={{
+                            width: `${score}%`,
+                            backgroundColor: score >= 80 ? "var(--accent-sage)" : score >= 65 ? "var(--accent-gold)" : "var(--accent-terracotta)"
+                          }}
+                        ></div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* Detected Yogas */}
+              <div className={styles.reasoningSectionHeader} style={{ marginTop: "12px" }}>
+                <h4>
+                  <Sparkles size={18} /> Active Yogas & Auspicious Combinations ({ocrParsedData.reasoning?.detected_yogas?.length || 0})
+                </h4>
+              </div>
+
+              {Array.isArray(ocrParsedData.reasoning?.detected_yogas) && ocrParsedData.reasoning.detected_yogas.length > 0 ? (
+                <div className={styles.yogasGrid}>
+                  {ocrParsedData.reasoning.detected_yogas.map((yoga: any, yIdx: number) => (
+                    <div key={yIdx} className={styles.yogaCard}>
+                      <div className={styles.yogaCardHeader}>
+                        <div className={styles.yogaName}>
+                          <Star size={16} style={{ color: "var(--accent-gold)" }} />
+                          {yoga.name}
+                        </div>
+                        <span className={styles.yogaCategoryBadge}>{yoga.category}</span>
+                      </div>
+                      <p className={styles.yogaDesc}>{yoga.description}</p>
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: "4px" }}>
+                        <span style={{ fontSize: "0.75rem", color: "var(--text-muted)" }}>
+                          Planets: {Array.isArray(yoga.planets) ? yoga.planets.join(", ") : "Key Placements"}
+                        </span>
+                        <span className={styles.ocrBadge} style={{ fontSize: "0.7rem", padding: "2px 8px" }}>
+                          ⚡ {yoga.strength_factor || "Active"}
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div style={{ padding: "18px", textAlign: "center", fontSize: "0.85rem", color: "var(--text-muted)", backgroundColor: "var(--bg-tertiary)", borderRadius: "var(--radius-md)" }}>
+                  Standard planetary configurations identified. No major extreme afflictions or dominant rare yogas localized.
+                </div>
+              )}
+
+              {/* Planetary Dignities */}
+              <div className={styles.reasoningSectionHeader} style={{ marginTop: "12px" }}>
+                <h4>
+                  <Compass size={18} /> Planetary Dignity Matrix & Strength Factors
+                </h4>
+              </div>
+
+              {ocrParsedData.reasoning?.planetary_dignities ? (
+                <div className={styles.dignitiesGrid}>
+                  {Object.entries(ocrParsedData.reasoning.planetary_dignities).map(([pName, dig]: [string, any]) => {
+                    const statusStr = String(dig.status || "Neutral");
+                    const isExalted = statusStr.includes("Exalted");
+                    const isOwn = statusStr.includes("Own");
+                    const isDebilitated = statusStr.includes("Debilitated");
+
+                    return (
+                      <div key={pName} className={styles.dignityCard}>
+                        <div className={styles.dignityHeader}>
+                          <div className={styles.dignityPlanet}>
+                            {PLANET_ICONS[pName] || "🪐"} {pName}
+                          </div>
+                          <span
+                            className={`${styles.dignityStatusPill} ${
+                              isExalted
+                                ? styles.dignityExalted
+                                : isOwn
+                                ? styles.dignityOwn
+                                : isDebilitated
+                                ? styles.dignityDebilitated
+                                : styles.dignityNeutral
+                            }`}
+                          >
+                            {statusStr}
+                          </span>
+                        </div>
+                        <div style={{ display: "flex", justifyContent: "space-between", fontSize: "0.75rem", color: "var(--text-muted)" }}>
+                          <span>House {dig.house || 1} • {dig.sign || "Sign"}</span>
+                          <span style={{ fontWeight: 600, color: "var(--accent-gold)" }}>{dig.score || 65} pts</span>
+                        </div>
+                        <div className={styles.confBarTrack} style={{ height: "4px" }}>
+                          <div
+                            className={styles.confBarFill}
+                            style={{
+                              width: `${dig.score || 65}%`,
+                              backgroundColor: isExalted ? "var(--accent-sage)" : isDebilitated ? "var(--accent-terracotta)" : "var(--accent-gold)"
+                            }}
+                          ></div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : null}
+
+              {/* Strategic Astrological Insights */}
+              {Array.isArray(ocrParsedData.insights) && ocrParsedData.insights.length > 0 && (
+                <div className={styles.insightsBox}>
+                  <h5 style={{ fontSize: "0.88rem", fontWeight: 700, color: "var(--accent-gold)", display: "flex", alignItems: "center", gap: "6px" }}>
+                    <Zap size={16} /> AI Strategic Astrological Guidance & Synthesis
+                  </h5>
+                  {ocrParsedData.insights.map((ins: string, iIdx: number) => (
+                    <div key={iIdx} className={styles.insightItem}>
+                      <span style={{ color: "var(--accent-gold)" }}>✦</span>
+                      <span>{ins}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
           {/* VIEW 5: AI CONFIDENCE & AUDIT */}
           {ocrActiveView === "validation" && (
             <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
@@ -1387,25 +1555,33 @@ export default function Home() {
               </h4>
 
               <div className={styles.auditChecksGrid}>
-                <div className={`${styles.checkCard} ${styles.checkCardSuccess}`}>
-                  <CheckCircle2 size={20} style={{ color: "var(--accent-sage)" }} />
+                <div className={`${styles.checkCard} ${(validation.completeness_score ?? 100) >= 80 ? styles.checkCardSuccess : styles.checkCardWarning}`}>
+                  <Zap size={20} style={{ color: (validation.completeness_score ?? 100) >= 80 ? "var(--accent-sage)" : "var(--accent-gold)" }} />
                   <div>
-                    <div className={styles.checkTitle}>House Continuity</div>
-                    <div className={styles.checkSub}>12 Sequential house boundaries verified</div>
+                    <div className={styles.checkTitle}>Navagraha Completeness</div>
+                    <div className={styles.checkSub}>
+                      {validation.navagrahas_count ?? planets.length}/9 Classical Navagrahas ({validation.completeness_score ?? 100}%)
+                    </div>
+                  </div>
+                </div>
+                <div className={`${styles.checkCard} ${validation.is_rahu_ketu_axis_valid === false ? styles.checkCardWarning : styles.checkCardSuccess}`}>
+                  <Compass size={20} style={{ color: validation.is_rahu_ketu_axis_valid === false ? "var(--accent-terracotta)" : "var(--accent-sage)" }} />
+                  <div>
+                    <div className={styles.checkTitle}>Rahu-Ketu 180° Nodal Axis</div>
+                    <div className={styles.checkSub}>
+                      {validation.is_rahu_ketu_axis_valid === true
+                        ? "Symmetric 7th-House Opposition Verified"
+                        : validation.is_rahu_ketu_axis_valid === false
+                        ? "Nodal Axis Asymmetry Flagged"
+                        : "Single Node / Not Localized"}
+                    </div>
                   </div>
                 </div>
                 <div className={`${styles.checkCard} ${styles.checkCardSuccess}`}>
                   <CheckCircle2 size={20} style={{ color: "var(--accent-sage)" }} />
                   <div>
-                    <div className={styles.checkTitle}>Zodiac Sequence</div>
-                    <div className={styles.checkSub}>Aries-Pisces polar order verified</div>
-                  </div>
-                </div>
-                <div className={`${styles.checkCard} ${styles.checkCardSuccess}`}>
-                  <CheckCircle2 size={20} style={{ color: "var(--accent-sage)" }} />
-                  <div>
-                    <div className={styles.checkTitle}>Planetary Detection</div>
-                    <div className={styles.checkSub}>{planets.length} Celestial bodies localized</div>
+                    <div className={styles.checkTitle}>Zodiac & House Topology</div>
+                    <div className={styles.checkSub}>12 Sequential Bhavas & signs mapped</div>
                   </div>
                 </div>
                 <div className={`${styles.checkCard} ${validation.warnings && validation.warnings.length > 0 ? styles.checkCardWarning : styles.checkCardSuccess}`}>
@@ -1428,7 +1604,7 @@ export default function Home() {
               {validation.warnings && validation.warnings.length > 0 && (
                 <div style={{ padding: "16px", backgroundColor: "rgba(230,194,128,0.08)", border: "1px solid rgba(230,194,128,0.3)", borderRadius: "var(--radius-md)", display: "flex", flexDirection: "column", gap: "8px" }}>
                   <span style={{ fontSize: "0.75rem", fontWeight: 600, color: "var(--accent-gold)", textTransform: "uppercase", letterSpacing: "0.05em" }}>
-                    Advisory Notes:
+                    Advisory Notes & Diagnostic Findings:
                   </span>
                   {validation.warnings.map((w: string, wIdx: number) => (
                     <div key={wIdx} style={{ fontSize: "0.82rem", color: "var(--text-secondary)", display: "flex", alignItems: "center", gap: "8px" }}>
